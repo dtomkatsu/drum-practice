@@ -1,12 +1,19 @@
 // Offline cache. Bump VERSION when shipping changes.
-const VERSION = "v10";
-const FILES = ["./", "index.html", "app.js", "engine.js", "patterns.js", "manifest.webmanifest", "icon.svg",
-  "kits/blondebop/100.m4a", "kits/blondebop/101.m4a", "kits/blondebop/110.m4a", "kits/blondebop/111.m4a", "kits/blondebop/120.m4a", "kits/blondebop/121.m4a", "kits/blondebop/200.m4a", "kits/blondebop/201.m4a", "kits/blondebop/210.m4a", "kits/blondebop/211.m4a", "kits/blondebop/220.m4a", "kits/blondebop/221.m4a", "kits/blondebop/300.m4a", "kits/blondebop/301.m4a", "kits/blondebop/310.m4a", "kits/blondebop/311.m4a", "kits/blondebop/320.m4a", "kits/blondebop/321.m4a", "kits/blondebop/c00.m4a", "kits/blondebop/c01.m4a", "kits/blondebop/c10.m4a", "kits/blondebop/c11.m4a", "kits/blondebop/c20.m4a", "kits/blondebop/c21.m4a", "kits/blondebop/h00.m4a", "kits/blondebop/h01.m4a", "kits/blondebop/h10.m4a", "kits/blondebop/h11.m4a", "kits/blondebop/h20.m4a", "kits/blondebop/h21.m4a", "kits/blondebop/k00.m4a", "kits/blondebop/k01.m4a", "kits/blondebop/k10.m4a", "kits/blondebop/k11.m4a", "kits/blondebop/k20.m4a", "kits/blondebop/k21.m4a", "kits/blondebop/kit.json", "kits/blondebop/o00.m4a", "kits/blondebop/o01.m4a", "kits/blondebop/o10.m4a", "kits/blondebop/o11.m4a", "kits/blondebop/o20.m4a", "kits/blondebop/o21.m4a", "kits/blondebop/r00.m4a", "kits/blondebop/r01.m4a", "kits/blondebop/r10.m4a", "kits/blondebop/r11.m4a", "kits/blondebop/r20.m4a", "kits/blondebop/r21.m4a", "kits/blondebop/s00.m4a", "kits/blondebop/s01.m4a", "kits/blondebop/s10.m4a", "kits/blondebop/s11.m4a", "kits/blondebop/s20.m4a", "kits/blondebop/s21.m4a", "kits/blondebop/t00.m4a", "kits/blondebop/t01.m4a", "kits/blondebop/t10.m4a", "kits/blondebop/t11.m4a", "kits/blondebop/t20.m4a", "kits/blondebop/t21.m4a",
-  "kits/muldjord/100.m4a", "kits/muldjord/101.m4a", "kits/muldjord/110.m4a", "kits/muldjord/111.m4a", "kits/muldjord/120.m4a", "kits/muldjord/121.m4a", "kits/muldjord/200.m4a", "kits/muldjord/201.m4a", "kits/muldjord/210.m4a", "kits/muldjord/211.m4a", "kits/muldjord/220.m4a", "kits/muldjord/221.m4a", "kits/muldjord/300.m4a", "kits/muldjord/301.m4a", "kits/muldjord/310.m4a", "kits/muldjord/311.m4a", "kits/muldjord/320.m4a", "kits/muldjord/321.m4a", "kits/muldjord/c00.m4a", "kits/muldjord/c01.m4a", "kits/muldjord/c10.m4a", "kits/muldjord/c11.m4a", "kits/muldjord/c20.m4a", "kits/muldjord/c21.m4a", "kits/muldjord/h00.m4a", "kits/muldjord/h01.m4a", "kits/muldjord/h10.m4a", "kits/muldjord/h11.m4a", "kits/muldjord/h20.m4a", "kits/muldjord/h21.m4a", "kits/muldjord/k00.m4a", "kits/muldjord/k01.m4a", "kits/muldjord/k10.m4a", "kits/muldjord/k11.m4a", "kits/muldjord/k20.m4a", "kits/muldjord/k21.m4a", "kits/muldjord/kit.json", "kits/muldjord/o00.m4a", "kits/muldjord/o01.m4a", "kits/muldjord/o10.m4a", "kits/muldjord/o11.m4a", "kits/muldjord/o20.m4a", "kits/muldjord/o21.m4a", "kits/muldjord/r00.m4a", "kits/muldjord/r01.m4a", "kits/muldjord/r10.m4a", "kits/muldjord/r11.m4a", "kits/muldjord/r20.m4a", "kits/muldjord/r21.m4a", "kits/muldjord/s00.m4a", "kits/muldjord/s01.m4a", "kits/muldjord/s10.m4a", "kits/muldjord/s11.m4a", "kits/muldjord/s20.m4a", "kits/muldjord/s21.m4a", "kits/muldjord/t00.m4a", "kits/muldjord/t01.m4a", "kits/muldjord/t10.m4a", "kits/muldjord/t11.m4a", "kits/muldjord/t20.m4a", "kits/muldjord/t21.m4a",
-  "kits/CR78/hihat.wav", "kits/CR78/kick.wav", "kits/CR78/snare.wav", "kits/LINN/hihat.wav", "kits/LINN/kick.wav", "kits/LINN/snare.wav", "kits/R8/hihat.wav", "kits/R8/kick.wav", "kits/R8/snare.wav", "kits/Stark/hihat.wav", "kits/Stark/kick.wav", "kits/Stark/snare.wav", "kits/acoustic-kit/hihat.wav", "kits/acoustic-kit/kick.wav", "kits/acoustic-kit/snare.wav"];
+// App shell is cached up front; kit samples are cached the first time they're used,
+// so every kit you've played works offline without downloading all of them on install.
+const VERSION = "v11";
+const SHELL = ["./", "index.html", "app.js", "engine.js", "patterns.js", "manifest.webmanifest", "icon.svg"];
 
-self.addEventListener("install", (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES))));
+self.addEventListener("install", (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL))));
 self.addEventListener("activate", (e) =>
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k))))));
-self.addEventListener("fetch", (e) =>
-  e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request))));
+self.addEventListener("fetch", (e) => {
+  if (e.request.method !== "GET") return;
+  e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+    if (res.ok && new URL(e.request.url).pathname.includes("/kits/")) {
+      const copy = res.clone();
+      caches.open(VERSION).then((c) => c.put(e.request, copy));
+    }
+    return res;
+  })));
+});

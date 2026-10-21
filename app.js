@@ -6,6 +6,8 @@ const eng = new DrumEngine();
 const saved = JSON.parse(localStorage.getItem("groove") || "{}");
 // Kit settings saved before v8 may point at a part-synth kit (v2's default); reset once.
 if ((saved.kitVersion ?? 0) < 8) { delete saved.kit; saved.kitAuto = true; }
+// v11 introduces the DRS kits: anyone still following the default moves to them.
+if ((saved.kitVersion ?? 0) < 11 && saved.kitAuto !== false) delete saved.kit;
 let kitAuto = saved.kitAuto ?? true;     // follow each groove's suggested kit until the user picks one
 const tempos = saved.tempos ?? {};        // groove name -> last hand-set BPM
 const muted = new Set(saved.muted ?? []); // voice keys silenced
@@ -68,7 +70,7 @@ function refreshLabels() {
 function save() {
   localStorage.setItem("groove", JSON.stringify({
     pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value,
-    feel: $("feel").value, fills: String(eng.fillEvery), song: $("song").value, kitAuto, kitVersion: 8,
+    feel: $("feel").value, fills: String(eng.fillEvery), song: $("song").value, kitAuto, kitVersion: 11,
     tempos, muted: [...muted], gap: $("gap").value,
     countin: $("countin").checked,
     trainer: { on: $("trainer").checked, add: $("tradd").value, every: $("trevery").value, max: $("trmax").value },
@@ -142,7 +144,7 @@ $("verse").onclick = () => eng.setSection("verse");
 $("chorus").onclick = () => eng.setSection("chorus");
 eng.onSection("verse");
 
-$("kit").value = saved.kit ?? PATTERNS[$("pattern").value]?.kit ?? "muldjord";
+$("kit").value = saved.kit ?? PATTERNS[$("pattern").value]?.kit ?? "drs";
 let kitLoaded = null;
 async function ensureKit() {
   if (kitLoaded === $("kit").value) return;
@@ -150,7 +152,7 @@ async function ensureKit() {
   await eng.loadKit(kitLoaded);
 }
 $("kit").onchange = () => {
-  kitAuto = $("kit").value === (eng.pattern?.kit ?? "muldjord");
+  kitAuto = $("kit").value === (eng.pattern?.kit ?? "drs");
   save(); if (eng.ctx) ensureKit();
 };
 
@@ -167,7 +169,7 @@ $("pattern").onchange = () => {
   loadPattern(); eng.step = 0; eng.grid = null;
   if (tempos[eng.pattern.name]) eng.setBpm(tempos[eng.pattern.name]);
   if (kitAuto) {
-    $("kit").value = eng.pattern.kit ?? "muldjord";
+    $("kit").value = eng.pattern.kit ?? "drs";
     save(); if (eng.ctx) ensureKit();
   }
 };

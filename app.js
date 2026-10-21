@@ -4,6 +4,8 @@ import { PATTERNS } from "./patterns.js";
 const $ = (id) => document.getElementById(id);
 const eng = new DrumEngine();
 const saved = JSON.parse(localStorage.getItem("groove") || "{}");
+// Kit settings saved before v8 may point at a part-synth kit (v2's default); reset once.
+if ((saved.kitVersion ?? 0) < 8) { delete saved.kit; saved.kitAuto = true; }
 let kitAuto = saved.kitAuto ?? true;
 const tempos = saved.tempos ?? {};        // groove name -> last hand-set BPM
 const muted = new Set(saved.muted ?? []); // voice keys silenced   // follow each groove's suggested kit until the user picks one
@@ -28,7 +30,7 @@ function loadPattern() {
 function save() {
   localStorage.setItem("groove", JSON.stringify({
     pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value,
-    feel: $("feel").value, fills: $("fills").value, song: $("song").value, kitAuto,
+    feel: $("feel").value, fills: $("fills").value, song: $("song").value, kitAuto, kitVersion: 8,
     tempos, muted: [...muted], gap: $("gap").value,
   }));
 }
@@ -105,7 +107,7 @@ $("chorus").onclick = () => eng.setSection("chorus");
 eng.onSection("verse");
 $("fills").onchange = applyFeel;
 
-$("kit").value = saved.kit ?? "muldjord";
+$("kit").value = saved.kit ?? PATTERNS[$("pattern").value]?.kit ?? "muldjord";
 let kitLoaded = null;
 async function ensureKit() {
   if (kitLoaded === $("kit").value) return;

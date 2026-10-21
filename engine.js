@@ -74,16 +74,16 @@ export class DrumEngine {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   }
 
-  // Bus: gentle compression, then a limiter-style stage and trim so stacked hits never clip.
+  // Bus: no compression (it flattens the attack and makes real drums sound programmed),
+  // just a fast safety limiter and trim so stacked hits never clip.
   buildOutput(ctx) {
-    const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -14; comp.ratio.value = 3; comp.attack.value = 0.005; comp.release.value = 0.12;
     const limit = ctx.createDynamicsCompressor();
-    limit.threshold.value = -3; limit.ratio.value = 20; limit.attack.value = 0.001; limit.release.value = 0.05;
+    limit.threshold.value = -2; limit.knee.value = 0; limit.ratio.value = 20;
+    limit.attack.value = 0.001; limit.release.value = 0.08;
     const trim = ctx.createGain();
-    trim.gain.value = 0.6;
-    comp.connect(limit); limit.connect(trim); trim.connect(ctx.destination);
-    this.out = comp;
+    trim.gain.value = 0.55;
+    trim.connect(limit); limit.connect(ctx.destination);
+    this.out = trim;
   }
 
   setBpm(bpm) {
@@ -194,7 +194,11 @@ export class DrumEngine {
       const t = this.nextTime;
       if (this.bar < 0) {
         // count-in: rim click on each beat
-        if (this.step % p.perBeat === 0) this.rim(t, this.step === 0 ? 1 : 0.7);
+        // Real stick click when the kit has one, synth click otherwise.
+        if (this.step % p.perBeat === 0) {
+          const v = this.step === 0 ? 1 : 0.75;
+          if (this.samples?.t) this.voice("t", t, v); else this.rim(t, v);
+        }
       } else {
         if (this.step === 0 || !this.grid) this.grid = this.barGrid();
         // Swing delays every other subdivision (16ths on a 4-per-beat grid).

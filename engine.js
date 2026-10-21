@@ -264,12 +264,16 @@ export class DrumEngine {
     const layers = this.samples?.[key];
     if (layers) {
       // Pick layer by velocity, rotate takes so repeats don't machine-gun.
-      const layer = layers[Math.min(layers.length - 1, v >= 0.95 ? 2 : v >= 0.6 ? 1 : 0)];
+      // Velocity 0.2..1.05 spreads evenly across however many layers the kit has
+      // (3-layer kits: g -> 0, x -> 1, X -> 2).
+      const L = layers.length;
+      const idx = L === 1 ? 0 : Math.max(0, Math.min(L - 1, Math.round(((v - 0.2) / 0.85) * (L - 1))));
+      const layer = layers[idx];
       this.rr[key] = (this.rr[key] ?? 0) + 1;
       const buf = layer[this.rr[key] % layer.length];
       // Layered kits encode most loudness in the sample; keep only the fine variation.
-      const nominal = v >= 0.95 ? 1 : v >= 0.6 ? 0.75 : 0.3;
-      const gain = layers.length > 1 ? v / nominal : v;
+      const nominal = L === 1 ? 1 : 0.2 + (0.85 * idx) / (L - 1);
+      const gain = L > 1 ? v / nominal : v;
       const s = this.ctx.createBufferSource();
       s.buffer = buf;
       const g = this.ctx.createGain();

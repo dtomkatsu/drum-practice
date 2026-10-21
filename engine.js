@@ -86,17 +86,32 @@ export class DrumEngine {
   async loadKit(name) {
     if (!name) { this.samples = null; return; }
     await this.init();
-    const files = { k: "kick", s: "snare", h: "hihat" };
-    const entries = await Promise.all(Object.entries(files).map(async ([key, f]) => {
-      const res = await fetch(`kits/${name}/${f}.wav`);
-      return [key, await this.ctx.decodeAudioData(await res.arrayBuffer())];
-    }));
+    const decode = async (path) =>
+      this.ctx.decodeAudioData(await (await fetch(`kits/${name}/${path}`)).arrayBuffer());
+    const manifest = await fetch(`kits/${name}/kit.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    let entries;
+    if (manifest) {
+      // Multi-sampled kit: manifest[key] = [ghost, normal, accent] layers, each a list of takes.
+      entries = await Promise.all(Object.entries(manifest).map(async ([key, layers]) =>
+        [key, await Promise.all(layers.map((takes) => Promise.all(takes.map(decode))))]));
+    } else {
+      const files = { k: "kick", s: "snare", h: "hihat" };
+      entries = await Promise.all(Object.entries(files).map(async ([key, f]) =>
+        [key, [[await decode(`${f}.wav`)]]]));
+    }
     this.samples = Object.fromEntries(entries);
+    this.rr = {};
   }
 
   voice(key, t, v) {
-    const buf = this.samples?.[key];
-    if (buf) {
+    const layers = this.samples?.[key];
+    if (layers) {
+      // Pick layer by velocity, rotate takes so repeats don't machine-gun.
+      const layer = layers[Math.min(layers.length - 1, v >= 0.95 ? 2 : v >= 0.6 ? 1 : 0)];
+      this.rr[key] = (this.rr[key] ?? 0) + 1;
+      const buf = layer[this.rr[key] % layer.length];
+      // Layered kits encode loudness in the sample; single-layer kits scale by velocity.
+      if (layers.length > 1) v = 1;
       const s = this.ctx.createBufferSource();
       s.buffer = buf;
       const g = this.ctx.createGain();

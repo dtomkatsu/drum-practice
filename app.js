@@ -26,7 +26,7 @@ function save() {
   localStorage.setItem("groove", JSON.stringify({ pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value }));
 }
 
-$("kit").value = saved.kit ?? "acoustic-kit";
+$("kit").value = saved.kit ?? "muldjord";
 let kitLoaded = null;
 async function ensureKit() {
   if (kitLoaded === $("kit").value) return;

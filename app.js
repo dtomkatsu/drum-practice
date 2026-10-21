@@ -6,41 +6,86 @@ const eng = new DrumEngine();
 const saved = JSON.parse(localStorage.getItem("groove") || "{}");
 // Kit settings saved before v8 may point at a part-synth kit (v2's default); reset once.
 if ((saved.kitVersion ?? 0) < 8) { delete saved.kit; saved.kitAuto = true; }
-let kitAuto = saved.kitAuto ?? true;
+let kitAuto = saved.kitAuto ?? true;     // follow each groove's suggested kit until the user picks one
 const tempos = saved.tempos ?? {};        // groove name -> last hand-set BPM
-const muted = new Set(saved.muted ?? []); // voice keys silenced   // follow each groove's suggested kit until the user picks one
+const muted = new Set(saved.muted ?? []); // voice keys silenced
 
 PATTERNS.forEach((p, i) => $("pattern").add(new Option(p.name, i)));
 $("pattern").value = saved.pattern ?? 0;
 
+// Drum lanes: one summary lane on the main screen, per-drum lanes (tap to mute) in the Sound sheet.
+const LANES = [
+  { label: "Hats/Ride", keys: "hor" }, { label: "Snare", keys: "st" },
+  { label: "Kick", keys: "k" }, { label: "Cym/Toms", keys: "c123" },
+];
+function laneRow(label, keys, steps) {
+  const row = document.createElement("div");
+  row.className = "lane";
+  row.innerHTML = `<span>${label}</span><div class="cells" style="grid-template-columns:repeat(${steps},1fr)"></div>`;
+  const cells = row.lastChild;
+  for (let i = 0; i < steps; i++) {
+    const c = document.createElement("i");
+    if ([...keys].some((k) => /[Xxg]/.test(eng.pattern.main[k]?.[i] ?? ""))) c.className = "on";
+    cells.append(c);
+  }
+  return row;
+}
 function loadPattern() {
   eng.pattern = PATTERNS[$("pattern").value];
-  const g = $("grid");
-  g.style.gridTemplateColumns = `repeat(${eng.pattern.steps}, 1fr)`;
-  g.innerHTML = "";
-  for (let i = 0; i < eng.pattern.steps; i++) {
-    const c = document.createElement("div");
-    const hit = "kst".split("").some((k) => /[Xx]/.test(eng.pattern.main[k]?.[i] ?? ""));
-    c.className = "cell" + (hit ? " on" : "");
-    g.append(c);
-  }
+  const steps = eng.pattern.steps;
+  $("mainlane").replaceChildren(laneRow("", "kst", steps));
+  $("mainlane").firstChild.style.gridTemplateColumns = "0 1fr";
+  $("mixlanes").replaceChildren(...LANES.map((l) => {
+    const row = laneRow(l.label, l.keys, steps);
+    const sync = () => row.classList.toggle("off", [...l.keys].every((k) => muted.has(k)));
+    row.onclick = () => {
+      const on = !row.classList.contains("off");
+      [...l.keys].forEach((k) => (on ? muted.add(k) : muted.delete(k)));
+      eng.muted = new Set(muted);
+      sync(); save();
+    };
+    sync();
+    return row;
+  }));
   save();
+}
+
+// Text that mirrors the native pickers.
+const optText = (id) => $(id).selectedOptions[0]?.text ?? "";
+function refreshLabels() {
+  const p = eng.pattern; if (!p) return;
+  const meter = p.steps === 9 ? "3/4" : p.perBeat === 3 ? "12/8 feel" : "4/4";
+  $("grooveName").textContent = p.name;
+  const off = LANES.filter((l) => [...l.keys].every((k) => muted.has(k))).map((l) => l.label.toLowerCase());
+  $("grooveSub").textContent = `${optText("kit")} · ${meter}` + (off.length ? ` · ${off.join(", ")} muted` : "");
+  $("kitName").textContent = optText("kit");
+  $("songName").textContent = optText("song");
+  $("gapName").textContent = optText("gap");
+  $("trainerSub").classList.toggle("show", $("trainer").checked);
+  $("sections").style.display = eng.song ? "none" : "";
 }
 
 function save() {
   localStorage.setItem("groove", JSON.stringify({
     pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value,
-    feel: $("feel").value, fills: $("fills").value, song: $("song").value, kitAuto, kitVersion: 8,
+    feel: $("feel").value, fills: String(eng.fillEvery), song: $("song").value, kitAuto, kitVersion: 8,
     tempos, muted: [...muted], gap: $("gap").value,
+    countin: $("countin").checked,
+    trainer: { on: $("trainer").checked, add: $("tradd").value, every: $("trevery").value, max: $("trmax").value },
   }));
+  refreshLabels();
 }
 
 // Feel options apply live, no restart needed.
 $("feel").value = saved.feel ?? 50;
-$("fills").value = saved.fills ?? "4";
+eng.fillEvery = +(saved.fills ?? 4);
+for (const b of $("fills").children) {
+  b.onclick = () => { eng.fillEvery = +b.dataset.v; syncFills(); save(); };
+}
+function syncFills() { for (const b of $("fills").children) b.classList.toggle("on", +b.dataset.v === eng.fillEvery); }
+syncFills();
 function applyFeel() {
   eng.feel = $("feel").value / 100;
-  eng.fillEvery = +$("fills").value;
   save();
 }
 $("feel").oninput = applyFeel;
@@ -64,6 +109,8 @@ eng.onBar = (i) => {
   else if (i.partBars) parts.push(`${i.section === "verse" ? "Verse" : "Chorus"} ${i.partBar}/${i.partBars}`);
   if (i.trainer) parts.push(i.trainer.bpm >= i.trainer.max ? `at target ${i.trainer.max}` : `→ ${i.trainer.max} · +${eng.trainer.add} in ${i.trainer.inBars} bar${i.trainer.inBars > 1 ? "s" : ""}`);
   $("status").textContent = parts.join("  ·  ");
+  $("dropback").hidden = !i.trainer;
+  $("pill").classList.toggle("idle", !parts.length);
 };
 $("dropback").onclick = () => eng.setBpm(eng.bpm - 10);
 
@@ -74,18 +121,7 @@ function userBpm(b) {
   save();
 }
 
-// Mutes apply instantly; gap trainer applies from the next bar.
-for (const b of document.querySelectorAll(".mute")) {
-  const keys = [...b.dataset.keys];
-  b.classList.toggle("on", keys.every((k) => muted.has(k)));
-  b.onclick = () => {
-    const on = !b.classList.contains("on");
-    keys.forEach((k) => (on ? muted.add(k) : muted.delete(k)));
-    b.classList.toggle("on", on);
-    eng.muted = new Set(muted);
-    save();
-  };
-}
+// Gap trainer applies from the next bar.
 eng.muted = new Set(muted);
 $("gap").value = saved.gap ?? "";
 function applyGap() {
@@ -105,7 +141,6 @@ eng.onSection = (cur, pending) => {
 $("verse").onclick = () => eng.setSection("verse");
 $("chorus").onclick = () => eng.setSection("chorus");
 eng.onSection("verse");
-$("fills").onchange = applyFeel;
 
 $("kit").value = saved.kit ?? PATTERNS[$("pattern").value]?.kit ?? "muldjord";
 let kitLoaded = null;
@@ -119,7 +154,7 @@ $("kit").onchange = () => {
   save(); if (eng.ctx) ensureKit();
 };
 
-eng.onBpm = (b) => { $("bpm").textContent = b; $("slider").value = b; save(); };
+eng.onBpm = (b) => { $("bpm").textContent = b; save(); };
 eng.setBpm(saved.bpm ?? 90);
 loadPattern();
 applyFeel();
@@ -136,30 +171,79 @@ $("pattern").onchange = () => {
     save(); if (eng.ctx) ensureKit();
   }
 };
-$("slider").oninput = (e) => userBpm(+e.target.value);
-document.querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => userBpm(eng.bpm + +b.dataset.d)));
-
+// Tempo: tap the number to tap tempo, drag it up/down to sweep, −/+ (hold to repeat) for fine steps.
 let taps = [];
-$("tap").onclick = () => {
+function tapTempo() {
   const now = performance.now();
   taps = taps.filter((t) => now - t < 2500).concat(now);
-  if (taps.length >= 2) {
-    const avg = (taps.at(-1) - taps[0]) / (taps.length - 1);
-    userBpm(60000 / avg);
-  }
+  if (taps.length >= 2) userBpm(60000 / ((taps.at(-1) - taps[0]) / (taps.length - 1)));
+  $("bpmbox").classList.add("tapped");
+  setTimeout(() => $("bpmbox").classList.remove("tapped"), 90);
+}
+let drag = null;
+$("bpmbox").onpointerdown = (e) => { drag = { y: e.clientY, bpm: eng.bpm, moved: false }; $("bpmbox").setPointerCapture(e.pointerId); };
+$("bpmbox").onpointermove = (e) => {
+  if (!drag) return;
+  const dy = drag.y - e.clientY;
+  if (Math.abs(dy) > 8) drag.moved = true;
+  if (drag.moved) userBpm(drag.bpm + Math.round(dy / 4));   // 4 px per BPM
 };
+$("bpmbox").onpointerup = () => { if (drag && !drag.moved) tapTempo(); drag = null; };
+$("bpmbox").onpointercancel = () => { drag = null; };
+
+for (const b of document.querySelectorAll("[data-d]")) {
+  let hold;
+  const step = () => userBpm(eng.bpm + +b.dataset.d);
+  b.onpointerdown = () => { step(); hold = setTimeout(function rep() { step(); hold = setTimeout(rep, 70); }, 400); };
+  b.onpointerup = b.onpointerleave = b.onpointercancel = () => clearTimeout(hold);
+}
+
+// Bottom sheets.
+function openSheet(id) {
+  document.querySelectorAll(".sheet").forEach((s) => s.classList.toggle("open", s.id === id));
+  document.body.classList.add("sheet-open");
+}
+function closeSheets() {
+  document.querySelectorAll(".sheet").forEach((s) => s.classList.remove("open"));
+  document.body.classList.remove("sheet-open");
+}
+$("openSound").onclick = () => openSheet("soundSheet");
+$("openPractice").onclick = () => openSheet("practiceSheet");
+$("scrim").onclick = closeSheets;
+document.querySelectorAll(".grab").forEach((g) => (g.onclick = closeSheets));
+
+// Practice settings: restore, and apply live while playing.
+$("countin").checked = saved.countin ?? true;
+const tr = saved.trainer ?? {};
+$("trainer").checked = !!tr.on;
+if (tr.add) $("tradd").value = tr.add;
+if (tr.every) $("trevery").value = tr.every;
+if (tr.max) $("trmax").value = tr.max;
+function applyTrainer() {
+  eng.trainer = $("trainer").checked
+    ? { add: +$("tradd").value || 1, every: +$("trevery").value || 1, max: +$("trmax").value || 240 }
+    : null;
+  if (!eng.trainer) $("dropback").hidden = true;
+  save();
+}
+for (const id of ["trainer", "tradd", "trevery", "trmax"]) $(id).onchange = applyTrainer;
+$("countin").onchange = save;
+$("gap").addEventListener("change", refreshLabels);
 
 // Visual playhead: queue step changes, render them when the audio clock reaches them.
 const queue = [];
 eng.onStep = (step, time, bar) => queue.push({ step, time, bar });
-let lastCell = null;
+let lit = [];
+function light(step) {
+  lit.forEach((c) => c.classList.remove("now"));
+  lit = step == null ? [] : [...document.querySelectorAll(`.cells i:nth-child(${step + 1})`)];
+  lit.forEach((c) => c.classList.add("now"));
+}
 function draw() {
   if (eng.playing) {
     while (queue.length && queue[0].time <= eng.ctx.currentTime) {
       const { step, bar } = queue.shift();
-      lastCell?.classList.remove("now");
-      lastCell = bar < 0 ? null : $("grid").children[step];
-      lastCell?.classList.add("now");
+      light(bar < 0 ? null : step);
     }
   }
   requestAnimationFrame(draw);
@@ -171,17 +255,14 @@ $("play").onclick = async () => {
   if (eng.playing) {
     eng.stop();
     queue.length = 0;
-    lastCell?.classList.remove("now");
+    light(null);
     wakeLock?.release(); wakeLock = null;
     $("play").textContent = "Play"; $("play").classList.remove("on");
-    $("status").textContent = ""; $("dropback").style.display = "none";
+    $("status").textContent = ""; $("dropback").hidden = true; $("pill").classList.add("idle");
     return;
   }
   eng.countIn = $("countin").checked ? 1 : 0;
-  eng.trainer = $("trainer").checked
-    ? { add: +$("tradd").value, every: +$("trevery").value, max: +$("trmax").value }
-    : null;
-  $("dropback").style.display = eng.trainer ? "" : "none";
+  applyTrainer();
   await ensureKit();
   await eng.start();
   try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
@@ -202,5 +283,7 @@ document.addEventListener("visibilitychange", async () => {
 document.addEventListener("keydown", (e) => {
   if (e.code === "Space" && e.target.tagName !== "INPUT") { e.preventDefault(); $("play").click(); }
 });
+
+save();   // persist restored settings once everything is wired
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

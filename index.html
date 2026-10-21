@@ -5,101 +5,145 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#111">
+<meta name="theme-color" content="#0e0e0e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon.svg">
 <link rel="icon" href="icon.svg">
 <title>Groove</title>
 <style>
-  :root { --bg:#111; --fg:#eee; --dim:#555; --hot:#ff6a2b; }
+  :root { --bg:#0e0e0e; --card:#1a1a1a; --line:#262626; --fg:#eee; --dim:#6b6b6b; --hot:#ff6a2b; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px -apple-system, system-ui, sans-serif;
-         padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); user-select:none;
-         display:flex; flex-direction:column; min-height:100vh; gap:18px; }
-  h1 { font-size:14px; letter-spacing:.2em; color:var(--dim); margin:16px 0 0; text-transform:uppercase; }
-  select, button { font:inherit; color:var(--fg); background:#222; border:0; border-radius:12px; padding:14px; }
-  select { width:100%; font-size:18px; }
-  .bpm { text-align:center; font-size:88px; font-weight:200; font-variant-numeric:tabular-nums; line-height:1; }
-  .bpm small { display:block; font-size:13px; color:var(--dim); letter-spacing:.2em; }
-  input[type=range] { width:100%; accent-color:var(--hot); height:40px; }
-  .row { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-  .row button { font-size:18px; }
-  .grid { display:grid; gap:4px; }
-  .cell { height:10px; border-radius:3px; background:#222; transition:background .05s; }
-  .cell.on { background:#444; } .cell.now { background:var(--hot); }
-  #play { font-size:22px; padding:22px; background:var(--hot); color:#000; font-weight:600; }
-  #play.on { background:#333; color:var(--fg); }
-  .mute { padding:8px 12px; font-size:14px; }
-  .mute.on { background:#552; color:#ffd; text-decoration:line-through; }
-  .sec.on { background:var(--hot); color:#000; font-weight:600; }
-  .sec.queued { box-shadow: inset 0 0 0 2px var(--hot); animation: pulse .6s infinite alternate; }
-  @keyframes pulse { to { box-shadow: inset 0 0 0 2px transparent; } }
-  .opts { display:flex; gap:8px; flex-wrap:wrap; color:#aaa; font-size:14px; }
-  .opts label { background:#1b1b1b; border-radius:10px; padding:10px 12px; display:flex; gap:6px; align-items:center; }
-  .opts input[type=number] { width:48px; background:#222; color:var(--fg); border:0; border-radius:6px; padding:4px; font:inherit; }
+  html, body { height:100%; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px -apple-system, system-ui, sans-serif; user-select:none; -webkit-user-select:none;
+         padding: calc(env(safe-area-inset-top) + 12px) 18px calc(env(safe-area-inset-bottom) + 14px);
+         display:flex; flex-direction:column; overflow:hidden; }
+  button { font:inherit; color:var(--fg); background:var(--card); border:0; border-radius:12px; padding:10px; cursor:pointer; }
+  /* a native <select> stretched invisibly over a styled row: looks custom, opens the iOS picker */
+  .picker { position:relative; } .picker select { position:absolute; inset:0; opacity:0; width:100%; font-size:16px; }
+
+  .top { display:flex; align-items:center; gap:8px; background:var(--card); border-radius:14px; padding:6px 6px 6px 14px; }
+  .top .picker { flex:1; padding:6px 0; } .top b { font-size:17px; display:block; } .top small { color:var(--dim); font-size:12px; }
+  .icon { width:40px; height:40px; padding:0; font-size:17px; background:#242424; border-radius:10px; }
+
+  .stage { flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; min-height:0; }
+  #bpmbox { text-align:center; touch-action:none; cursor:ns-resize; padding:8px 0; }
+  #bpm { font-weight:200; font-size:clamp(84px, 30vw, 128px); line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-2px; display:block; transition:color .1s; }
+  #bpmbox.tapped #bpm { color:var(--hot); }
+  #bpmbox small { display:block; font-size:11px; letter-spacing:.22em; color:var(--dim); margin-top:6px; }
+  .nudge { display:flex; justify-content:center; gap:16px; }
+  .nudge button { width:52px; height:52px; border-radius:50%; font-size:24px; padding:0; }
+  .pill { align-self:center; background:#1c1c1c; border-radius:20px; padding:6px 6px 6px 14px; font-size:13px; color:#bbb;
+          display:flex; align-items:center; gap:10px; min-height:32px; font-variant-numeric:tabular-nums; }
+  .pill.idle { visibility:hidden; }
+  .pill button { font-size:12px; padding:4px 10px; border-radius:14px; background:#2c2c2c; }
+
+  .lanes { display:grid; gap:5px; }
+  .lane { display:grid; grid-template-columns:58px 1fr; align-items:center; gap:8px; font-size:12px; color:#999; }
+  .cells { display:grid; gap:3px; }
+  .cells i { height:10px; border-radius:2px; background:#202020; } .cells i.on { background:#4a4a4a; }
+  .cells i.now { background:var(--hot); }
+  .lane.off { opacity:.3; } .lane.off span { text-decoration:line-through; }
+  #mainlane { margin-bottom:12px; }
+
+  .seg { display:flex; background:#1c1c1c; border-radius:11px; padding:3px; }
+  .seg button { flex:1; background:none; padding:9px 0; font-size:15px; color:#999; border-radius:9px; }
+  .seg button.on { background:#383838; color:#fff; }
+  .seg button.queued { color:var(--hot); animation:pulse .6s infinite alternate; }
+  @keyframes pulse { to { opacity:.4; } }
+  #sections { margin-bottom:10px; }
+  #play { background:var(--hot); color:#000; font-weight:700; font-size:21px; padding:18px; border-radius:16px; width:100%; }
+  #play.on { background:#2a2a2a; color:var(--fg); }
+
+  .scrim { position:fixed; inset:0; background:#0008; opacity:0; pointer-events:none; transition:opacity .2s; }
+  .sheet { position:fixed; left:0; right:0; bottom:0; background:#161616; border-radius:22px 22px 0 0; max-height:85vh; overflow:auto;
+           padding:10px 18px calc(env(safe-area-inset-bottom) + 18px); box-shadow:0 -10px 30px #000;
+           transform:translateY(105%); transition:transform .25s ease; }
+  body.sheet-open .scrim { opacity:1; pointer-events:auto; }
+  .sheet.open { transform:none; }
+  .grab { width:38px; height:5px; border-radius:3px; background:#444; margin:0 auto 10px; }
+  .sheet h3 { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:10px 0 4px; font-weight:600; }
+  .set { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 2px; border-bottom:1px solid var(--line); font-size:15px; min-height:48px; }
+  .set:last-child { border:0; } .set .val { color:#aaa; text-align:right; }
+  .set .val::after { content:" ›"; color:#555; }
+  .set input[type=range] { flex:1; accent-color:var(--hot); }
+  .hint { font-size:12px; color:var(--dim); margin:6px 0 8px; }
+  .toggle { appearance:none; -webkit-appearance:none; width:48px; height:28px; border-radius:14px; background:#333; position:relative; transition:background .2s; flex:none; margin:0; }
+  .toggle::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:#ddd; transition:transform .2s; }
+  .toggle:checked { background:var(--hot); } .toggle:checked::after { transform:translateX(20px); }
+  .sub { display:none; gap:8px; padding:4px 0 12px; } .sub.show { display:grid; grid-template-columns:1fr 1fr 1fr; }
+  .sub label { background:#1f1f1f; border-radius:10px; padding:8px; font-size:11px; color:#888; display:flex; flex-direction:column; gap:4px; }
+  .sub input { outline:none; caret-color:var(--hot); background:none; border:0; color:var(--fg); font:inherit; font-size:20px; width:100%; padding:0; }
+  .about { font-size:11px; color:#555; line-height:1.5; margin-top:14px; }
 </style>
 </head>
 <body>
-  <h1>Groove</h1>
-  <select id="pattern"></select>
-  <select id="kit">
-    <option value="muldjord">Studio kit (full)</option>
-    <option value="blondebop">Jazz kit (bop)</option>
-    <option value="acoustic-kit">Basic acoustic (part synth)</option>
-    <option value="LINN">LinnDrum (part synth)</option>
-    <option value="R8">Roland R-8 (part synth)</option>
-    <option value="CR78">CR-78 (part synth)</option>
-    <option value="Stark">Stark (part synth)</option>
-    <option value="">Synth only</option>
-  </select>
-  <div class="bpm"><span id="bpm">90</span><small>BPM</small></div>
-  <input id="slider" type="range" min="30" max="240" value="90">
-  <div class="row">
-    <button data-d="-5">−5</button><button data-d="-1">−1</button>
-    <button data-d="1">+1</button><button data-d="5">+5</button>
+  <div class="top">
+    <div class="picker"><b id="grooveName">Rock 8ths</b><small id="grooveSub">Studio kit</small><select id="pattern" aria-label="Groove"></select></div>
+    <button class="icon" id="openSound" aria-label="Sound">◐</button>
+    <button class="icon" id="openPractice" aria-label="Practice">⚙︎</button>
   </div>
-  <div id="status" style="text-align:center;color:#999;font-size:14px;min-height:20px;font-variant-numeric:tabular-nums"></div>
-  <div class="row" style="grid-template-columns:1fr 1fr 1fr">
-    <button id="verse" class="sec">Verse</button><button id="chorus" class="sec">Chorus</button><button id="tap">Tap</button>
+
+  <div class="stage">
+    <div id="bpmbox" aria-label="Tempo: tap to tap tempo, drag to change"><span id="bpm">90</span><small>BPM · TAP TO TAP TEMPO · DRAG ↕</small></div>
+    <div class="nudge"><button data-d="-1" aria-label="Slower">−</button><button data-d="1" aria-label="Faster">+</button></div>
+    <div class="pill idle" id="pill"><span id="status"></span><button id="dropback" hidden>−10</button></div>
   </div>
-  <div id="grid" class="grid"></div>
-  <div id="mutes" class="opts" style="justify-content:center">
-    <span style="align-self:center">Mute:</span>
-    <button class="mute" data-keys="k">Kick</button>
-    <button class="mute" data-keys="st">Snare</button>
-    <button class="mute" data-keys="hor">Hats/Ride</button>
-    <button class="mute" data-keys="c123">Cymbals/Toms</button>
-  </div>
-  <div class="opts">
-    <label><input id="countin" type="checkbox" checked> 1-bar count-in</label>
-    <label style="flex:1 1 100%">Feel <span style="color:#666">tight</span>
-      <input id="feel" type="range" min="0" max="100" value="50" style="flex:1;height:28px">
-      <span style="color:#666">loose</span></label>
-    <label>Song <select id="song" style="padding:4px 6px;font-size:14px;width:auto">
-      <option value="">Manual</option>
-      <option value="v8,c8">Verse 8 / Chorus 8</option>
-      <option value="v4,c4">Verse 4 / Chorus 4</option>
-      <option value="v8,c8,v8,c16">V8 C8 V8 C16</option>
-      <option value="v12,c12">12 / 12 (blues form)</option>
-    </select></label>
-    <label>Gap <select id="gap" style="padding:4px 6px;font-size:14px;width:auto">
-      <option value="">Off</option>
-      <option value="3,1">3 on / 1 off</option>
-      <option value="2,2">2 on / 2 off</option>
-      <option value="4,4">4 on / 4 off</option>
-      <option value="1,3">1 on / 3 off</option>
-    </select></label>
-    <label>Fills <select id="fills" style="padding:4px 6px;font-size:14px;width:auto">
-      <option value="0">Off</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option>
-    </select></label>
-    <label><input id="trainer" type="checkbox"> Speed up
-      <input id="tradd" type="number" value="2" min="1">bpm every
-      <input id="trevery" type="number" value="4" min="1">bars to
-      <input id="trmax" type="number" value="140" min="30"></label>
-  </div>
-  <button id="dropback" style="display:none">Drop back 10 BPM</button>
+
+  <div class="lanes" id="mainlane"></div>
+  <div class="seg" id="sections"><button id="verse">Verse</button><button id="chorus">Chorus</button></div>
   <button id="play">Play</button>
-  <p style="color:#555;font-size:11px;text-align:center;margin:0 0 12px">Drum samples provided by DrumGizmo.org (MuldjordKit, CC BY 4.0) and AVL Drumkits by Glen MacArthur (Blonde Bop, CC BY-SA 3.0) and Google web-audio-samples (Apache 2.0).</p>
+
+  <div class="scrim" id="scrim"></div>
+
+  <div class="sheet" id="soundSheet">
+    <div class="grab"></div>
+    <div class="set picker"><span>Kit</span><span class="val" id="kitName"></span>
+      <select id="kit" aria-label="Kit">
+        <option value="muldjord">Studio kit</option>
+        <option value="blondebop">Jazz kit (bop)</option>
+        <option value="acoustic-kit">Basic acoustic (part synth)</option>
+        <option value="LINN">LinnDrum (part synth)</option>
+        <option value="R8">Roland R-8 (part synth)</option>
+        <option value="CR78">CR-78 (part synth)</option>
+        <option value="Stark">Stark (part synth)</option>
+        <option value="">Synth only</option>
+      </select></div>
+    <h3>Mix</h3>
+    <div class="hint">Tap a drum to mute it.</div>
+    <div class="lanes" id="mixlanes"></div>
+    <div class="set" style="margin-top:6px"><span>Feel</span><span style="color:#666;font-size:12px">tight</span>
+      <input id="feel" type="range" min="0" max="100" value="50"><span style="color:#666;font-size:12px">loose</span></div>
+    <p class="about">Drum samples: DrumGizmo.org (MuldjordKit, CC BY 4.0) · AVL Drumkits by Glen MacArthur (Blonde Bop, CC BY-SA 3.0) · Google web-audio-samples (Apache 2.0).</p>
+  </div>
+
+  <div class="sheet" id="practiceSheet">
+    <div class="grab"></div>
+    <div class="set picker"><span>Song</span><span class="val" id="songName"></span>
+      <select id="song" aria-label="Song form">
+        <option value="">Manual</option>
+        <option value="v8,c8">Verse 8 / Chorus 8</option>
+        <option value="v4,c4">Verse 4 / Chorus 4</option>
+        <option value="v8,c8,v8,c16">V8 C8 V8 C16</option>
+        <option value="v12,c12">12 / 12 (blues form)</option>
+      </select></div>
+    <div class="set"><span>Fills</span>
+      <div class="seg" id="fills" style="width:170px"><button data-v="0">Off</button><button data-v="4">4 bars</button><button data-v="8">8</button></div></div>
+    <div class="set"><span>Count-in</span><input type="checkbox" class="toggle" id="countin" checked></div>
+    <div class="set"><span>Speed trainer</span><input type="checkbox" class="toggle" id="trainer"></div>
+    <div class="sub" id="trainerSub">
+      <label>Add BPM<input id="tradd" type="number" inputmode="numeric" value="2" min="1"></label>
+      <label>Every bars<input id="trevery" type="number" inputmode="numeric" value="4" min="1"></label>
+      <label>Up to<input id="trmax" type="number" inputmode="numeric" value="140" min="30"></label>
+    </div>
+    <div class="set picker"><span>Gap trainer</span><span class="val" id="gapName"></span>
+      <select id="gap" aria-label="Gap trainer">
+        <option value="">Off</option>
+        <option value="3,1">3 on / 1 off</option>
+        <option value="2,2">2 on / 2 off</option>
+        <option value="4,4">4 on / 4 off</option>
+        <option value="1,3">1 on / 3 off</option>
+      </select></div>
+  </div>
 <script type="module" src="app.js"></script>
 </body>
 </html>

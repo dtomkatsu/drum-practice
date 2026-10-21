@@ -53,6 +53,8 @@ export class DrumEngine {
     this.trainer = null;       // {every: bars, add: bpm, max: bpm}
     this.feel = 0.5;           // humanize amount 0..1
     this.section = "verse";
+    this.muted = new Set();    // voice keys to skip, e.g. "k"
+    this.gap = null;           // {play, silent} bars
     this.song = null;          // [{section, bars}, ...] loops; null = manual sections
     this.pendingSection = null;
     this.fillEvery = 4;        // bars per phrase; 0 = no fills
@@ -149,6 +151,12 @@ export class DrumEngine {
   }
 
   // Progress for the UI, delivered when the bar actually starts sounding.
+  // Gap trainer: play `play` bars, then `silent` bars of nothing; your time has to hold.
+  inGap(bar = this.bar) {
+    const g = this.gap;
+    return !!g && bar >= 0 && bar % (g.play + g.silent) >= g.play;
+  }
+
   reportBar(atTime) {
     if (!this.onBar) return;
     const tr = this.trainer;
@@ -156,6 +164,7 @@ export class DrumEngine {
     const info = {
       bar: this.bar, section: this.pendingSection ?? this.section,
       partBar: part ? Math.min(this.phraseBar, part.bars - 1) + 1 : null, partBars: part?.bars ?? null,
+      gap: this.inGap(),
       trainer: tr && this.bar >= 0 ? { bpm: this.bpm, max: tr.max, inBars: tr.every - (this.bar % tr.every) } : null,
     };
     const delay = Math.max(0, (atTime - this.ctx.currentTime) * 1000);
@@ -190,7 +199,9 @@ export class DrumEngine {
         if (this.step === 0 || !this.grid) this.grid = this.barGrid();
         // Swing delays every other subdivision (16ths on a 4-per-beat grid).
         const swing = p.swing && this.step % 2 === 1 ? p.swing * stepDur : 0;
+        const gap = this.inGap();
         for (const key of VOICE_ORDER) {
+          if (gap || this.muted.has(key)) continue;
           const ch = this.grid[key]?.[this.step];
           let v = ch === "X" ? 1 : ch === "x" ? 0.75 : ch === "g" ? 0.3 : 0;
           if (!v) continue;

@@ -23,8 +23,17 @@ function loadPattern() {
 }
 
 function save() {
-  localStorage.setItem("groove", JSON.stringify({ pattern: $("pattern").value, bpm: eng.bpm }));
+  localStorage.setItem("groove", JSON.stringify({ pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value }));
 }
+
+$("kit").value = saved.kit ?? "acoustic-kit";
+let kitLoaded = null;
+async function ensureKit() {
+  if (kitLoaded === $("kit").value) return;
+  kitLoaded = $("kit").value;
+  await eng.loadKit(kitLoaded);
+}
+$("kit").onchange = () => { save(); if (eng.ctx) ensureKit(); };
 
 eng.onBpm = (b) => { $("bpm").textContent = b; $("slider").value = b; save(); };
 eng.setBpm(saved.bpm ?? 90);
@@ -76,6 +85,7 @@ $("play").onclick = async () => {
   eng.trainer = $("trainer").checked
     ? { add: +$("tradd").value, every: +$("trevery").value, max: +$("trmax").value }
     : null;
+  await ensureKit();
   await eng.start();
   try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
   $("play").textContent = "Stop"; $("play").classList.add("on");

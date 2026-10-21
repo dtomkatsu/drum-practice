@@ -82,7 +82,29 @@ export class DrumEngine {
     }
   }
 
+  // Sampled kit: kick/snare/closed hat from kits/<name>/; other voices stay synthesized.
+  async loadKit(name) {
+    if (!name) { this.samples = null; return; }
+    await this.init();
+    const files = { k: "kick", s: "snare", h: "hihat" };
+    const entries = await Promise.all(Object.entries(files).map(async ([key, f]) => {
+      const res = await fetch(`kits/${name}/${f}.wav`);
+      return [key, await this.ctx.decodeAudioData(await res.arrayBuffer())];
+    }));
+    this.samples = Object.fromEntries(entries);
+  }
+
   voice(key, t, v) {
+    const buf = this.samples?.[key];
+    if (buf) {
+      const s = this.ctx.createBufferSource();
+      s.buffer = buf;
+      const g = this.ctx.createGain();
+      g.gain.value = v;
+      s.connect(g); g.connect(this.out);
+      s.start(t);
+      return;
+    }
     ({ k: this.kick, s: this.snare, h: this.hat, o: this.openHat,
        r: this.ride, c: this.crash, t: this.rim })[key].call(this, t, v);
   }

@@ -4,6 +4,21 @@
 
 const LOOKAHEAD = 0.12;   // seconds scheduled ahead
 const TICK_MS = 25;       // scheduler wake interval
+const VOICE_ORDER = ["k", "s", "t", "h", "o", "r", "c", "1", "2", "3"];
+
+// Per-voice feel: bias = consistent push(-)/drag(+), jitter = random spread (seconds).
+// Kick sits tight on the grid, snare lays back a hair, hats breathe the most.
+const HUMAN = {
+  k: { bias: 0, jitter: 0.003 },
+  s: { bias: 0.004, jitter: 0.004 },
+  h: { bias: -0.002, jitter: 0.006 },
+  o: { bias: -0.002, jitter: 0.006 },
+  r: { bias: -0.002, jitter: 0.006 },
+  default: { bias: 0, jitter: 0.004 },
+};
+
+// Gaussian-ish noise in roughly [-1, 1] (sum of uniforms).
+const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 
 export class DrumEngine {
   constructor() {
@@ -16,6 +31,8 @@ export class DrumEngine {
     this.bar = 0;
     this.countIn = 0;          // bars of click before the groove
     this.trainer = null;       // {every: bars, add: bpm, max: bpm}
+    this.humanize = true;
+    this.fillEvery = 4;        // bars per phrase; 0 = no fills
     this.onStep = null;        // (step, time, bar) for the UI
     this.onBpm = null;
   }
@@ -25,13 +42,23 @@ export class DrumEngine {
     // iOS 16.4+: play even with the ring/silent switch on.
     if (navigator.audioSession) navigator.audioSession.type = "playback";
     this.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
-    this.out = this.ctx.createDynamicsCompressor();
-    this.out.threshold.value = -8;
-    this.out.connect(this.ctx.destination);
+    this.buildOutput(this.ctx);
     const len = this.ctx.sampleRate;
     this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  }
+
+  // Bus: gentle compression, then a limiter-style stage and trim so stacked hits never clip.
+  buildOutput(ctx) {
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -14; comp.ratio.value = 3; comp.attack.value = 0.005; comp.release.value = 0.12;
+    const limit = ctx.createDynamicsCompressor();
+    limit.threshold.value = -3; limit.ratio.value = 20; limit.attack.value = 0.001; limit.release.value = 0.05;
+    const trim = ctx.createGain();
+    trim.gain.value = 0.6;
+    comp.connect(limit); limit.connect(trim); trim.connect(ctx.destination);
+    this.out = comp;
   }
 
   setBpm(bpm) {
@@ -55,25 +82,52 @@ export class DrumEngine {
     clearInterval(this.timer);
   }
 
+  // Which grid plays this bar: fill on the last bar of each phrase, alt on odd bars.
+  barGrid(bar) {
+    const p = this.pattern;
+    const fill = this.fillEvery && p.fill && (bar + 1) % this.fillEvery === 0;
+    const alt = !fill && p.alt && bar % 2 === 1;
+    const g = { ...p.main, ...(fill ? p.fill : alt ? p.alt : {}) };
+    // Crash on the downbeat after a fill.
+    if (this.fillEvery && p.fill && bar > 0 && bar % this.fillEvery === 0 && !p.noCrash) {
+      g.c = "X" + (g.c ?? "-".repeat(p.steps)).slice(1);
+    }
+    return g;
+  }
+
   schedule() {
     const p = this.pattern;
+    const stepDur = 60 / this.bpm / p.perBeat;
     while (this.nextTime < this.ctx.currentTime + LOOKAHEAD) {
       const t = this.nextTime;
       if (this.bar < 0) {
         // count-in: rim click on each beat
         if (this.step % p.perBeat === 0) this.rim(t, this.step === 0 ? 1 : 0.7);
       } else {
-        for (const key of "kshorct") {
-          const ch = p[key]?.[this.step];
-          const v = ch === "X" ? 1 : ch === "x" ? 0.75 : ch === "g" ? 0.3 : 0;
-          if (v) this.voice(key, t, v);
+        if (this.step === 0 || !this.grid) this.grid = this.barGrid(this.bar);
+        // Swing delays every other subdivision (16ths on a 4-per-beat grid).
+        const swing = p.swing && this.step % 2 === 1 ? p.swing * stepDur : 0;
+        for (const key of VOICE_ORDER) {
+          const ch = this.grid[key]?.[this.step];
+          let v = ch === "X" ? 1 : ch === "x" ? 0.75 : ch === "g" ? 0.3 : 0;
+          if (!v) continue;
+          // Cymbal hand leans on the beat, lighter in between.
+          if ("hr".includes(key) && ch === "x" && this.step % p.perBeat !== 0) v *= 0.85;
+          let when = t + swing;
+          if (this.humanize) {
+            const h = HUMAN[key] ?? HUMAN.default;
+            when += h.bias + gauss() * h.jitter;
+            v *= 1 + gauss() * 0.06;
+          }
+          this.voice(key, Math.max(when, this.ctx.currentTime), Math.min(1.1, Math.max(0.05, v)));
         }
       }
       this.onStep?.(this.step, t, this.bar);
-      this.nextTime += 60 / this.bpm / p.perBeat;
+      this.nextTime += stepDur;
       if (++this.step >= p.steps) {
         this.step = 0;
         this.bar++;
+        this.grid = null;
         const tr = this.trainer;
         if (tr && this.bar > 0 && this.bar % tr.every === 0 && this.bpm < tr.max) {
           this.setBpm(Math.min(tr.max, this.bpm + tr.add));
@@ -110,19 +164,43 @@ export class DrumEngine {
       const layer = layers[Math.min(layers.length - 1, v >= 0.95 ? 2 : v >= 0.6 ? 1 : 0)];
       this.rr[key] = (this.rr[key] ?? 0) + 1;
       const buf = layer[this.rr[key] % layer.length];
-      // Layered kits encode loudness in the sample; single-layer kits scale by velocity.
-      if (layers.length > 1) v = 1;
+      // Layered kits encode most loudness in the sample; keep only the fine variation.
+      const nominal = v >= 0.95 ? 1 : v >= 0.6 ? 0.75 : 0.3;
+      const gain = layers.length > 1 ? v / nominal : v;
       const s = this.ctx.createBufferSource();
       s.buffer = buf;
       const g = this.ctx.createGain();
-      g.gain.value = v;
+      g.gain.value = gain;
       s.connect(g); g.connect(this.out);
       s.start(t);
+      this.choke(key, t, g);
       return;
     }
-    ({ k: this.kick, s: this.snare, h: this.hat, o: this.openHat,
-       r: this.ride, c: this.crash, t: this.rim })[key].call(this, t, v);
+    ({ k: this.kick, s: this.snare, h: this.hat, o: this.openHat, r: this.ride, c: this.crash,
+       t: this.rim, 1: this.tomHi, 2: this.tomMid, 3: this.tomLow })[key].call(this, t, v);
   }
+
+  // A closed hat (or another open hat) cuts off the ringing open hat, like a real foot pedal.
+  choke(key, t, gainNode) {
+    if ((key === "h" || key === "o") && this.openHatGain) {
+      const g = this.openHatGain.gain;
+      g.cancelScheduledValues(t);
+      g.setTargetAtTime(0, t, 0.015);
+      this.openHatGain = null;
+    }
+    if (key === "o") this.openHatGain = gainNode;
+  }
+
+  tom(t, v, f) {
+    const o = this.ctx.createOscillator();
+    o.frequency.setValueAtTime(f * 1.6, t);
+    o.frequency.exponentialRampToValueAtTime(f, t + 0.08);
+    o.connect(this.env(t, v * 0.8, 0.35));
+    o.start(t); o.stop(t + 0.4);
+  }
+  tomHi(t, v) { this.tom(t, v, 200); }
+  tomMid(t, v) { this.tom(t, v, 150); }
+  tomLow(t, v) { this.tom(t, v, 100); }
 
   env(t, v, decay) {
     const g = this.ctx.createGain();

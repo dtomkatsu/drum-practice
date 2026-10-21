@@ -15,7 +15,7 @@ function loadPattern() {
   g.innerHTML = "";
   for (let i = 0; i < eng.pattern.steps; i++) {
     const c = document.createElement("div");
-    const hit = "kst".split("").some((k) => /[Xx]/.test(eng.pattern[k]?.[i] ?? ""));
+    const hit = "kst".split("").some((k) => /[Xx]/.test(eng.pattern.main[k]?.[i] ?? ""));
     c.className = "cell" + (hit ? " on" : "");
     g.append(c);
   }
@@ -23,8 +23,22 @@ function loadPattern() {
 }
 
 function save() {
-  localStorage.setItem("groove", JSON.stringify({ pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value }));
+  localStorage.setItem("groove", JSON.stringify({
+    pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value,
+    humanize: $("humanize").checked, fills: $("fills").value,
+  }));
 }
+
+// Feel options apply live, no restart needed.
+$("humanize").checked = saved.humanize ?? true;
+$("fills").value = saved.fills ?? "4";
+function applyFeel() {
+  eng.humanize = $("humanize").checked;
+  eng.fillEvery = +$("fills").value;
+  save();
+}
+$("humanize").onchange = applyFeel;
+$("fills").onchange = applyFeel;
 
 $("kit").value = saved.kit ?? "muldjord";
 let kitLoaded = null;
@@ -38,9 +52,10 @@ $("kit").onchange = () => { save(); if (eng.ctx) ensureKit(); };
 eng.onBpm = (b) => { $("bpm").textContent = b; $("slider").value = b; save(); };
 eng.setBpm(saved.bpm ?? 90);
 loadPattern();
+applyFeel();
 
 // Pattern switch while playing takes effect at the next step; reset to bar start.
-$("pattern").onchange = () => { loadPattern(); eng.step = 0; };
+$("pattern").onchange = () => { loadPattern(); eng.step = 0; eng.grid = null; };
 $("slider").oninput = (e) => eng.setBpm(+e.target.value);
 document.querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => eng.setBpm(eng.bpm + +b.dataset.d)));
 

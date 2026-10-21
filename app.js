@@ -4,6 +4,7 @@ import { PATTERNS } from "./patterns.js";
 const $ = (id) => document.getElementById(id);
 const eng = new DrumEngine();
 const saved = JSON.parse(localStorage.getItem("groove") || "{}");
+let kitAuto = saved.kitAuto ?? true;   // follow each groove's suggested kit until the user picks one
 
 PATTERNS.forEach((p, i) => $("pattern").add(new Option(p.name, i)));
 $("pattern").value = saved.pattern ?? 0;
@@ -25,7 +26,7 @@ function loadPattern() {
 function save() {
   localStorage.setItem("groove", JSON.stringify({
     pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value,
-    feel: $("feel").value, fills: $("fills").value,
+    feel: $("feel").value, fills: $("fills").value, song: $("song").value, kitAuto,
   }));
 }
 
@@ -38,6 +39,27 @@ function applyFeel() {
   save();
 }
 $("feel").oninput = applyFeel;
+
+// Song mode: "v8,c8" -> [{section: "verse", bars: 8}, {section: "chorus", bars: 8}]
+$("song").value = saved.song ?? "";
+function applySong() {
+  const v = $("song").value;
+  eng.song = v ? v.split(",").map((x) => ({ section: x[0] === "v" ? "verse" : "chorus", bars: +x.slice(1) })) : null;
+  if (eng.song && eng.playing) { eng.songIdx = 0; eng.phraseBar = 0; eng.setSection(eng.song[0].section); }
+  save();
+}
+$("song").onchange = applySong;
+
+// Live status: song position and speed-trainer progress, in sync with the audio.
+eng.onBar = (i) => {
+  if (!eng.playing) return;
+  const parts = [];
+  if (i.bar < 0) parts.push("count-in");
+  else if (i.partBars) parts.push(`${i.section === "verse" ? "Verse" : "Chorus"} ${i.partBar}/${i.partBars}`);
+  if (i.trainer) parts.push(i.trainer.bpm >= i.trainer.max ? `at target ${i.trainer.max}` : `→ ${i.trainer.max} · +${eng.trainer.add} in ${i.trainer.inBars} bar${i.trainer.inBars > 1 ? "s" : ""}`);
+  $("status").textContent = parts.join("  ·  ");
+};
+$("dropback").onclick = () => eng.setBpm(eng.bpm - 10);
 
 // Sections: the button pulses while the change waits for its transition fill.
 eng.onSection = (cur, pending) => {
@@ -58,15 +80,26 @@ async function ensureKit() {
   kitLoaded = $("kit").value;
   await eng.loadKit(kitLoaded);
 }
-$("kit").onchange = () => { save(); if (eng.ctx) ensureKit(); };
+$("kit").onchange = () => {
+  kitAuto = $("kit").value === (eng.pattern?.kit ?? "muldjord");
+  save(); if (eng.ctx) ensureKit();
+};
 
 eng.onBpm = (b) => { $("bpm").textContent = b; $("slider").value = b; save(); };
 eng.setBpm(saved.bpm ?? 90);
 loadPattern();
 applyFeel();
+applySong();
 
 // Pattern switch while playing takes effect at the next step; reset to bar start.
-$("pattern").onchange = () => { loadPattern(); eng.step = 0; eng.grid = null; };
+// Grooves can suggest a kit (jazz -> bop kit). Follow the suggestion unless the user picked a kit by hand.
+$("pattern").onchange = () => {
+  loadPattern(); eng.step = 0; eng.grid = null;
+  if (kitAuto) {
+    $("kit").value = eng.pattern.kit ?? "muldjord";
+    save(); if (eng.ctx) ensureKit();
+  }
+};
 $("slider").oninput = (e) => eng.setBpm(+e.target.value);
 document.querySelectorAll("[data-d]").forEach((b) => (b.onclick = () => eng.setBpm(eng.bpm + +b.dataset.d)));
 
@@ -105,12 +138,14 @@ $("play").onclick = async () => {
     lastCell?.classList.remove("now");
     wakeLock?.release(); wakeLock = null;
     $("play").textContent = "Play"; $("play").classList.remove("on");
+    $("status").textContent = ""; $("dropback").style.display = "none";
     return;
   }
   eng.countIn = $("countin").checked ? 1 : 0;
   eng.trainer = $("trainer").checked
     ? { add: +$("tradd").value, every: +$("trevery").value, max: +$("trmax").value }
     : null;
+  $("dropback").style.display = eng.trainer ? "" : "none";
   await ensureKit();
   await eng.start();
   try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}

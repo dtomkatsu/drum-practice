@@ -53,6 +53,7 @@ export class DrumEngine {
     this.trainer = null;       // {every: bars, add: bpm, max: bpm}
     this.feel = 0.5;           // humanize amount 0..1
     this.section = "verse";
+    this.song = null;          // [{section, bars}, ...] loops; null = manual sections
     this.pendingSection = null;
     this.fillEvery = 4;        // bars per phrase; 0 = no fills
     this.onStep = null;        // (step, time, bar) for the UI
@@ -97,8 +98,12 @@ export class DrumEngine {
     this.grid = null;
     this.crashNext = false;
     this.transition = false;
+    this.songRepeat = false;
+    this.songIdx = 0;
+    if (this.song) { this.section = this.song[0].section; this.pendingSection = null; this.onSection?.(this.section); }
     this.nextTime = this.ctx.currentTime + 0.05;
     this.playing = true;
+    this.reportBar(this.nextTime);
     this.timer = setInterval(() => this.schedule(), TICK_MS);
     this.schedule();
   }
@@ -112,9 +117,20 @@ export class DrumEngine {
   // fills land at the end of each 4/8-bar phrase and a section change gets its own fill.
   barGrid() {
     const p = this.pattern;
+    // Song mode: on a part's last bar, queue the next part so this bar becomes its transition.
+    if (this.song && !this.pendingSection) {
+      const part = this.song[this.songIdx % this.song.length];
+      if (this.phraseBar >= part.bars - 1) {
+        const next = this.song[(this.songIdx + 1) % this.song.length];
+        if (next.section !== this.section) this.pendingSection = next.section;
+        else this.songRepeat = true;
+      }
+    }
     const hasFill = !!p.fill;
     let fill = false;
-    if (this.pendingSection && hasFill) {
+    if (this.songRepeat && hasFill) {
+      fill = true;                         // same section again: just mark the part boundary
+    } else if (this.pendingSection && hasFill) {
       fill = true;
       this.transition = true;              // section switches after this bar
     } else if (this.pendingSection) {
@@ -132,7 +148,22 @@ export class DrumEngine {
     return g;
   }
 
+  // Progress for the UI, delivered when the bar actually starts sounding.
+  reportBar(atTime) {
+    if (!this.onBar) return;
+    const tr = this.trainer;
+    const part = this.song?.[this.songIdx % this.song.length];
+    const info = {
+      bar: this.bar, section: this.pendingSection ?? this.section,
+      partBar: part ? Math.min(this.phraseBar, part.bars - 1) + 1 : null, partBars: part?.bars ?? null,
+      trainer: tr && this.bar >= 0 ? { bpm: this.bpm, max: tr.max, inBars: tr.every - (this.bar % tr.every) } : null,
+    };
+    const delay = Math.max(0, (atTime - this.ctx.currentTime) * 1000);
+    setTimeout(() => this.onBar(info), delay);
+  }
+
   applySection() {
+    if (this.song) this.songIdx++;
     this.section = this.pendingSection;
     this.pendingSection = null;
     this.phraseBar = 0;
@@ -183,10 +214,12 @@ export class DrumEngine {
         this.grid = null;
         if (this.bar > 0) this.phraseBar++;
         if (this.transition) { this.transition = false; this.applySection(); }
+        if (this.songRepeat) { this.songRepeat = false; this.songIdx++; this.phraseBar = 0; this.crashNext = true; }
         const tr = this.trainer;
         if (tr && this.bar > 0 && this.bar % tr.every === 0 && this.bpm < tr.max) {
           this.setBpm(Math.min(tr.max, this.bpm + tr.add));
         }
+        this.reportBar(t + stepDur);
       }
     }
   }

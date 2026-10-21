@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#111">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" href="icon.svg">
 <title>Groove</title>
 <style>
   :root { --bg:#111; --fg:#eee; --dim:#555; --hot:#ff6a2b; }
@@ -41,6 +42,7 @@
   <select id="pattern"></select>
   <select id="kit">
     <option value="muldjord">Studio kit (full)</option>
+    <option value="blondebop">Jazz kit (bop)</option>
     <option value="acoustic-kit">Acoustic kit (basic)</option>
     <option value="LINN">LinnDrum</option>
     <option value="R8">Roland R-8</option>
@@ -54,6 +56,7 @@
     <button data-d="-5">−5</button><button data-d="-1">−1</button>
     <button data-d="1">+1</button><button data-d="5">+5</button>
   </div>
+  <div id="status" style="text-align:center;color:#999;font-size:14px;min-height:20px;font-variant-numeric:tabular-nums"></div>
   <div class="row" style="grid-template-columns:1fr 1fr 1fr">
     <button id="verse" class="sec">Verse</button><button id="chorus" class="sec">Chorus</button><button id="tap">Tap</button>
   </div>
@@ -63,6 +66,13 @@
     <label style="flex:1 1 100%">Feel <span style="color:#666">tight</span>
       <input id="feel" type="range" min="0" max="100" value="50" style="flex:1;height:28px">
       <span style="color:#666">loose</span></label>
+    <label>Song <select id="song" style="padding:4px 6px;font-size:14px;width:auto">
+      <option value="">Manual</option>
+      <option value="v8,c8">Verse 8 / Chorus 8</option>
+      <option value="v4,c4">Verse 4 / Chorus 4</option>
+      <option value="v8,c8,v8,c16">V8 C8 V8 C16</option>
+      <option value="v12,c12">12 / 12 (blues form)</option>
+    </select></label>
     <label>Fills <select id="fills" style="padding:4px 6px;font-size:14px;width:auto">
       <option value="0">Off</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option>
     </select></label>
@@ -71,8 +81,9 @@
       <input id="trevery" type="number" value="4" min="1">bars to
       <input id="trmax" type="number" value="140" min="30"></label>
   </div>
+  <button id="dropback" style="display:none">Drop back 10 BPM</button>
   <button id="play">Play</button>
-  <p style="color:#555;font-size:11px;text-align:center;margin:0 0 12px">Drum samples provided by DrumGizmo.org (MuldjordKit, CC BY 4.0) and Google web-audio-samples (Apache 2.0).</p>
+  <p style="color:#555;font-size:11px;text-align:center;margin:0 0 12px">Drum samples provided by DrumGizmo.org (MuldjordKit, CC BY 4.0) and AVL Drumkits by Glen MacArthur (Blonde Bop, CC BY-SA 3.0) and Google web-audio-samples (Apache 2.0).</p>
 <script type="module" src="app.js"></script>
 </body>
 </html>

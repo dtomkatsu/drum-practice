@@ -67,6 +67,21 @@ export const PATTERNS = [
     fill: { r: "Xxxxxx------", s: "---X--gxXxXX" },
   },
   {
+    // Ride spang-a-lang, hat foot on 2 & 4, feathered kick, sparse snare comping.
+    name: "Jazz Swing", steps: 12, perBeat: 3, kit: "blondebop",
+    main: { r: "x--X-xx--X-x", h: "---x-----x--", k: "g--g--g--g--", s: "-----------g" },
+    alt:  { s: "-----g----g-" },
+    fill: { r: "x--X-x------", s: "------g-xgxX", 3: "---------x--" },
+    chorus: { k: "g--g--g--g-x", s: "--g--g--g--x" },
+  },
+  {
+    name: "Jazz Waltz (3/4)", steps: 9, perBeat: 3, kit: "blondebop",
+    main: { r: "x--x-xx-x", h: "---x--x--", k: "g--------" },
+    alt:  { s: "------g--", k: "g-----g--" },
+    fill: { r: "x--x-----", s: "----gxgxX" },
+    chorus: { k: "x-----g--", s: "---g--g-x" },
+  },
+  {
     name: "Bossa Nova", steps: 16, perBeat: 4, noCrash: true,
     main: { k: "x--xx--xx--xx--x", t: "x--x--x---x--x--", h: "x-x-x-x-x-x-x-x-" },
   },

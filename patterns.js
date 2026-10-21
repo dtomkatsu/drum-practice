@@ -18,6 +18,7 @@ export const PATTERNS = [
     main: { k: "X---x---X---x---", s: "----X-------X---", h: "x-g-x-g-x-g-x-g-", o: "--x---x---x---x-" },
     alt:  { s: "----X-----g-X---" },
     fill: { s: "----X---x-x-xxXX", h: "x-g-x-g-x-------", o: "--x---x---------" },
+    chorus: { o: "--X---X---X---X-", h: "x---x---x---x---", s: "----X-------X---" },
   },
   {
     name: "Funk 16ths", steps: 16, perBeat: 4, swing: 0.12,
@@ -78,5 +79,6 @@ export const PATTERNS = [
   {
     name: "Click Only", steps: 4, perBeat: 1, noCrash: true,
     main: { t: "Xxxx" },
+    chorus: {},
   },
 ];

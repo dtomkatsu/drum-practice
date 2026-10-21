@@ -17,6 +17,26 @@ const HUMAN = {
   default: { bias: 0, jitter: 0.004 },
 };
 
+// Chorus = same groove, bigger: hats move to the ride (accent on the beat), kick and
+// snare get promoted. Grooves can supply their own `chorus` instead.
+const chorusCache = new WeakMap();
+function chorusOf(p) {
+  if (p.chorus) return { ...p.main, ...p.chorus };
+  if (!chorusCache.has(p)) {
+    const g = { ...p.main };
+    const up = (row) => row?.replace(/x/g, "X").replace(/g/g, "x");
+    if (g.h) {
+      g.r = g.h.replace(/g/g, "-").split("").map((c, i) => (c === "-" ? "-" : i % p.perBeat === 0 ? "X" : "x")).join("");
+      delete g.h;
+      delete g.o;
+    }
+    if (g.t && !g.s) { g.s = g.t.replace(/x/g, "X"); delete g.t; }   // cross-stick opens up to full snare
+    g.k = up(g.k); g.s = up(g.s);
+    chorusCache.set(p, g);
+  }
+  return chorusCache.get(p);
+}
+
 // Gaussian-ish noise in roughly [-1, 1] (sum of uniforms).
 const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 
@@ -31,7 +51,9 @@ export class DrumEngine {
     this.bar = 0;
     this.countIn = 0;          // bars of click before the groove
     this.trainer = null;       // {every: bars, add: bpm, max: bpm}
-    this.humanize = true;
+    this.feel = 0.5;           // humanize amount 0..1
+    this.section = "verse";
+    this.pendingSection = null;
     this.fillEvery = 4;        // bars per phrase; 0 = no fills
     this.onStep = null;        // (step, time, bar) for the UI
     this.onBpm = null;
@@ -71,6 +93,10 @@ export class DrumEngine {
     await this.ctx.resume();
     this.step = 0;
     this.bar = -this.countIn;
+    this.phraseBar = 0;
+    this.grid = null;
+    this.crashNext = false;
+    this.transition = false;
     this.nextTime = this.ctx.currentTime + 0.05;
     this.playing = true;
     this.timer = setInterval(() => this.schedule(), TICK_MS);
@@ -82,17 +108,43 @@ export class DrumEngine {
     clearInterval(this.timer);
   }
 
-  // Which grid plays this bar: fill on the last bar of each phrase, alt on odd bars.
-  barGrid(bar) {
+  // Which grid plays this bar. Bars count from the start of the current section, so
+  // fills land at the end of each 4/8-bar phrase and a section change gets its own fill.
+  barGrid() {
     const p = this.pattern;
-    const fill = this.fillEvery && p.fill && (bar + 1) % this.fillEvery === 0;
-    const alt = !fill && p.alt && bar % 2 === 1;
-    const g = { ...p.main, ...(fill ? p.fill : alt ? p.alt : {}) };
-    // Crash on the downbeat after a fill.
-    if (this.fillEvery && p.fill && bar > 0 && bar % this.fillEvery === 0 && !p.noCrash) {
-      g.c = "X" + (g.c ?? "-".repeat(p.steps)).slice(1);
+    const hasFill = !!p.fill;
+    let fill = false;
+    if (this.pendingSection && hasFill) {
+      fill = true;
+      this.transition = true;              // section switches after this bar
+    } else if (this.pendingSection) {
+      this.applySection();                 // groove without a fill: switch right away
+    } else {
+      fill = hasFill && this.fillEvery > 0 && (this.phraseBar + 1) % this.fillEvery === 0;
     }
+    const base = this.section === "chorus" ? chorusOf(p) : p.main;
+    const alt = !fill && p.alt && this.phraseBar % 2 === 1 && this.section !== "chorus";
+    const g = { ...base, ...(fill ? p.fill : alt ? p.alt : {}) };
+    // In a chorus that rides, fill hats stay on the ride.
+    if (fill && g.r && !base.h && p.fill.h) { g.r = p.fill.h.replace(/g/g, "-"); delete g.h; delete g.o; }
+    if (this.crashNext && !p.noCrash) g.c = "X" + (g.c ?? "-".repeat(p.steps)).slice(1);
+    this.crashNext = fill;
     return g;
+  }
+
+  applySection() {
+    this.section = this.pendingSection;
+    this.pendingSection = null;
+    this.phraseBar = 0;
+    this.crashNext = true;
+    this.onSection?.(this.section);
+  }
+
+  // Queue a section change; it lands after a transition fill (or at once if no fill).
+  setSection(name) {
+    if (!this.playing) { this.section = name; this.pendingSection = null; this.onSection?.(name); return; }
+    this.pendingSection = name === this.section ? null : name;
+    this.onSection?.(this.section, this.pendingSection);
   }
 
   schedule() {
@@ -104,7 +156,7 @@ export class DrumEngine {
         // count-in: rim click on each beat
         if (this.step % p.perBeat === 0) this.rim(t, this.step === 0 ? 1 : 0.7);
       } else {
-        if (this.step === 0 || !this.grid) this.grid = this.barGrid(this.bar);
+        if (this.step === 0 || !this.grid) this.grid = this.barGrid();
         // Swing delays every other subdivision (16ths on a 4-per-beat grid).
         const swing = p.swing && this.step % 2 === 1 ? p.swing * stepDur : 0;
         for (const key of VOICE_ORDER) {
@@ -114,10 +166,11 @@ export class DrumEngine {
           // Cymbal hand leans on the beat, lighter in between.
           if ("hr".includes(key) && ch === "x" && this.step % p.perBeat !== 0) v *= 0.85;
           let when = t + swing;
-          if (this.humanize) {
-            const h = HUMAN[key] ?? HUMAN.default;
-            when += h.bias + gauss() * h.jitter;
-            v *= 1 + gauss() * 0.06;
+          if (this.feel > 0) {
+            // feel 0..1: 0 = machine-tight, 0.5 = natural player, 1 = loose
+            const h = HUMAN[key] ?? HUMAN.default, f = this.feel * 2;
+            when += (h.bias + gauss() * h.jitter) * f;
+            v *= 1 + gauss() * 0.06 * f;
           }
           this.voice(key, Math.max(when, this.ctx.currentTime), Math.min(1.1, Math.max(0.05, v)));
         }
@@ -128,6 +181,8 @@ export class DrumEngine {
         this.step = 0;
         this.bar++;
         this.grid = null;
+        if (this.bar > 0) this.phraseBar++;
+        if (this.transition) { this.transition = false; this.applySection(); }
         const tr = this.trainer;
         if (tr && this.bar > 0 && this.bar % tr.every === 0 && this.bpm < tr.max) {
           this.setBpm(Math.min(tr.max, this.bpm + tr.add));

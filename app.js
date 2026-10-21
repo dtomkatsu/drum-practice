@@ -25,19 +25,30 @@ function loadPattern() {
 function save() {
   localStorage.setItem("groove", JSON.stringify({
     pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value,
-    humanize: $("humanize").checked, fills: $("fills").value,
+    feel: $("feel").value, fills: $("fills").value,
   }));
 }
 
 // Feel options apply live, no restart needed.
-$("humanize").checked = saved.humanize ?? true;
+$("feel").value = saved.feel ?? 50;
 $("fills").value = saved.fills ?? "4";
 function applyFeel() {
-  eng.humanize = $("humanize").checked;
+  eng.feel = $("feel").value / 100;
   eng.fillEvery = +$("fills").value;
   save();
 }
-$("humanize").onchange = applyFeel;
+$("feel").oninput = applyFeel;
+
+// Sections: the button pulses while the change waits for its transition fill.
+eng.onSection = (cur, pending) => {
+  for (const id of ["verse", "chorus"]) {
+    $(id).classList.toggle("on", id === cur);
+    $(id).classList.toggle("queued", id === pending);
+  }
+};
+$("verse").onclick = () => eng.setSection("verse");
+$("chorus").onclick = () => eng.setSection("chorus");
+eng.onSection("verse");
 $("fills").onchange = applyFeel;
 
 $("kit").value = saved.kit ?? "muldjord";
@@ -105,5 +116,20 @@ $("play").onclick = async () => {
   try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
   $("play").textContent = "Stop"; $("play").classList.add("on");
 };
+
+// iOS suspends audio on calls, Siri, or app switches; pick back up when we return.
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState !== "visible" || !eng.playing) return;
+  if (eng.ctx.state !== "running") {
+    await eng.ctx.resume();
+    eng.nextTime = eng.ctx.currentTime + 0.05;   // don't burst-play the backlog
+  }
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+});
+
+// Space bar toggles play (iPad keyboard, desktop).
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && e.target.tagName !== "INPUT") { e.preventDefault(); $("play").click(); }
+});
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

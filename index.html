@@ -28,6 +28,9 @@
   .cell.on { background:#444; } .cell.now { background:var(--hot); }
   #play { font-size:22px; padding:22px; background:var(--hot); color:#000; font-weight:600; }
   #play.on { background:#333; color:var(--fg); }
+  .sec.on { background:var(--hot); color:#000; font-weight:600; }
+  .sec.queued { box-shadow: inset 0 0 0 2px var(--hot); animation: pulse .6s infinite alternate; }
+  @keyframes pulse { to { box-shadow: inset 0 0 0 2px transparent; } }
   .opts { display:flex; gap:8px; flex-wrap:wrap; color:#aaa; font-size:14px; }
   .opts label { background:#1b1b1b; border-radius:10px; padding:10px 12px; display:flex; gap:6px; align-items:center; }
   .opts input[type=number] { width:48px; background:#222; color:var(--fg); border:0; border-radius:6px; padding:4px; font:inherit; }
@@ -51,11 +54,15 @@
     <button data-d="-5">−5</button><button data-d="-1">−1</button>
     <button data-d="1">+1</button><button data-d="5">+5</button>
   </div>
-  <button id="tap">Tap tempo</button>
+  <div class="row" style="grid-template-columns:1fr 1fr 1fr">
+    <button id="verse" class="sec">Verse</button><button id="chorus" class="sec">Chorus</button><button id="tap">Tap</button>
+  </div>
   <div id="grid" class="grid"></div>
   <div class="opts">
     <label><input id="countin" type="checkbox" checked> 1-bar count-in</label>
-    <label><input id="humanize" type="checkbox" checked> Human feel</label>
+    <label style="flex:1 1 100%">Feel <span style="color:#666">tight</span>
+      <input id="feel" type="range" min="0" max="100" value="50" style="flex:1;height:28px">
+      <span style="color:#666">loose</span></label>
     <label>Fills <select id="fills" style="padding:4px 6px;font-size:14px;width:auto">
       <option value="0">Off</option><option value="4">Every 4 bars</option><option value="8">Every 8 bars</option>
     </select></label>

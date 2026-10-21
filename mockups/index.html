@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Groove — layout mockups</title>
+<style>
+  :root { --bg:#0e0e0e; --card:#1a1a1a; --line:#262626; --fg:#eee; --dim:#6b6b6b; --hot:#ff6a2b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#050505; color:var(--fg); font:15px -apple-system, system-ui, sans-serif; padding:24px 12px 60px; }
+  h1 { font-size:18px; margin:0 0 4px; } .lede { color:#999; margin:0 0 24px; max-width:60em; }
+  .wrap { display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start; }
+  .col { width:320px; }
+  .col h2 { font-size:15px; margin:0 0 4px; } .col p { color:#999; font-size:13px; margin:0 0 10px; line-height:1.4; }
+  .tag { display:inline-block; font-size:11px; padding:2px 7px; border-radius:6px; background:var(--hot); color:#000; font-weight:700; margin-left:6px; vertical-align:2px; }
+  .phone { position:relative; width:320px; height:640px; background:var(--bg); border-radius:38px; border:8px solid #222; overflow:hidden; padding:44px 18px 18px; display:flex; flex-direction:column; }
+  .muted { color:var(--dim); }
+  button { font:inherit; color:var(--fg); background:var(--card); border:0; border-radius:12px; padding:10px; cursor:pointer; }
+  .groove { display:flex; justify-content:space-between; align-items:center; background:var(--card); border-radius:14px; padding:12px 14px; }
+  .groove b { font-size:17px; } .groove small { color:var(--dim); display:block; font-size:12px; margin-top:2px; }
+  .bpm { text-align:center; font-weight:200; font-size:96px; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-2px; }
+  .bpm small { display:block; font-size:11px; letter-spacing:.25em; color:var(--dim); font-weight:500; margin-top:4px; }
+  .nudge { display:flex; justify-content:center; gap:10px; align-items:center; }
+  .nudge button { width:46px; height:46px; border-radius:50%; font-size:20px; padding:0; }
+  .lanes { display:grid; gap:5px; }
+  .lane { display:grid; grid-template-columns:44px repeat(16,1fr); gap:3px; align-items:center; font-size:10px; color:var(--dim); }
+  .lane i { height:9px; border-radius:2px; background:#222; } .lane i.on { background:#4a4a4a; } .lane i.now { background:var(--hot); }
+  .lane.off { opacity:.3; text-decoration:line-through; }
+  .play { background:var(--hot); color:#000; font-weight:700; font-size:20px; padding:18px; border-radius:16px; width:100%; }
+  .pill { align-self:center; background:#1f1f1f; border-radius:20px; padding:5px 12px; font-size:12px; color:#bbb; }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .sheet { position:absolute; left:0; right:0; bottom:0; background:#171717; border-radius:22px 22px 0 0; padding:10px 16px 18px; box-shadow:0 -10px 30px #000; transform:translateY(100%); transition:transform .25s ease; }
+  .phone.open .sheet { transform:none; }
+  .sheet .grab { width:36px; height:5px; border-radius:3px; background:#444; margin:0 auto 12px; }
+  .set { display:flex; justify-content:space-between; align-items:center; padding:11px 2px; border-bottom:1px solid var(--line); font-size:14px; }
+  .set:last-child { border:0; } .set span:last-child { color:#aaa; }
+  .seg { display:flex; background:#222; border-radius:10px; padding:2px; } .seg span { flex:1; text-align:center; padding:6px 0; border-radius:8px; font-size:13px; color:#aaa; }
+  .seg span.on { background:#3a3a3a; color:#fff; }
+  .tabs { display:flex; border-top:1px solid var(--line); margin:auto -18px -18px; padding:8px 0 14px; }
+  .tabs span { flex:1; text-align:center; font-size:11px; color:var(--dim); } .tabs span.on { color:var(--hot); }
+  .tabs b { display:block; font-size:18px; margin-bottom:2px; }
+  .big { flex:1; display:flex; flex-direction:column; justify-content:center; align-items:center; border-radius:24px; background:radial-gradient(circle at 50% 45%, #2a1a12, #121212 70%); }
+  .note { margin-top:10px; font-size:12px; color:#888; line-height:1.45; }
+  .note li { margin-bottom:3px; }
+  .current { font-size:11px; }
+  .current .phone { padding:40px 12px 12px; gap:6px; overflow:hidden; }
+  .current select, .current .mini { background:#222; border-radius:8px; padding:6px 8px; font-size:11px; color:#ddd; }
+  .current .chips { display:flex; flex-wrap:wrap; gap:4px; } .current .chips span { background:#1b1b1b; border-radius:6px; padding:5px 6px; color:#aaa; }
+</style>
+</head>
+<body>
+<h1>Groove: making it compact</h1>
+<p class="lede">The current screen shows about 25 controls at once. Most are set-and-forget, used once per session. The idea is to keep only what you touch <em>while playing guitar</em> on the main screen and tuck the rest away. Tap the gear / sliders icons in A to open the sheets.</p>
+
+<div class="wrap">
+
+  <!-- CURRENT -->
+  <div class="col current">
+    <h2>Now (v9)</h2>
+    <p>Everything at once: 2 dropdowns, BPM + slider, 4 nudge buttons, Verse/Chorus/Tap, lanes, 4 mutes, 5 option groups with 3 number fields, drop-back, Play, credits.</p>
+    <div class="phone">
+      <div class="muted" style="letter-spacing:.2em">GROOVE</div>
+      <div class="mini">Rock 8ths ▾</div><div class="mini">Studio kit (full) ▾</div>
+      <div class="bpm" style="font-size:56px">96<small>BPM</small></div>
+      <div class="mini" style="height:6px;padding:0;background:#ff6a2b55"></div>
+      <div class="row"><button>−5</button><button>−1</button><button>+1</button><button>+5</button></div>
+      <div class="mini" style="text-align:center">Verse 3/8 · → 140 · +2 in 3 bars</div>
+      <div class="row"><button>Verse</button><button>Chorus</button><button>Tap</button></div>
+      <div class="mini" style="height:12px;padding:0"></div>
+      <div class="chips"><span>Mute:</span><span>Kick</span><span>Snare</span><span>Hats/Ride</span><span>Cym/Toms</span></div>
+      <div class="chips"><span>☑ count-in</span><span>Feel ━━●━━</span><span>Song ▾</span><span>Gap ▾</span><span>Fills ▾</span><span>☐ Speed up [2] bpm every [4] bars to [140]</span></div>
+      <button>Drop back 10 BPM</button>
+      <button class="play" style="padding:12px">Play</button>
+      <div class="muted" style="font-size:9px;text-align:center">Drum samples provided by DrumGizmo.org …</div>
+    </div>
+  </div>
+
+  <!-- A -->
+  <div class="col">
+    <h2>A · Stage + two sheets <span class="tag">RECOMMENDED</span></h2>
+    <p>Main screen = groove, tempo, sections, play. Sound and practice settings live in bottom sheets. ~7 controls visible.</p>
+    <div class="phone" id="a">
+      <div class="groove"><div><b>Rock 8ths</b><small>Studio kit · 4/4</small></div>
+        <div class="row" style="flex:0;gap:6px"><button onclick="openSheet('a','snd')" title="Sound">◐</button><button onclick="openSheet('a','prac')" title="Practice">⚙︎</button></div></div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px">
+        <div class="bpm">96<small>BPM · TAP TO TAP TEMPO</small></div>
+        <div class="nudge"><button>−</button><span class="muted" style="font-size:12px">drag number ↕</span><button>+</button></div>
+        <div class="pill">Verse 3/8 · +2 BPM in 3 bars</div>
+      </div>
+      <div class="lanes" style="margin-bottom:12px">
+        <div class="lane"><span>Hats</span>${lane}</div>
+      </div>
+      <div class="seg" style="margin-bottom:10px"><span class="on">Verse</span><span>Chorus</span></div>
+      <button class="play">Play</button>
+      <div class="sheet" data-s="snd"><div class="grab" onclick="closeSheet('a')"></div>
+        <div class="set"><span>Kit</span><span>Studio ›</span></div>
+        <div style="font-size:12px;color:#888;margin:10px 0 6px">Tap a lane to mute it</div>
+        <div class="lanes">
+          <div class="lane"><span>Hats</span>${lane}</div>
+          <div class="lane"><span>Snare</span>${lane2}</div>
+          <div class="lane off"><span>Kick</span>${lane3}</div>
+          <div class="lane"><span>Cym</span>${lane4}</div>
+        </div>
+        <div class="set" style="margin-top:8px"><span>Feel</span><span>tight ━━●━━ loose</span></div>
+      </div>
+      <div class="sheet" data-s="prac"><div class="grab" onclick="closeSheet('a')"></div>
+        <div class="set"><span>Song</span><span>V8 / C8 ›</span></div>
+        <div class="set"><span>Fills</span><div class="seg" style="width:150px"><span>Off</span><span class="on">4</span><span>8</span></div></div>
+        <div class="set"><span>Count-in</span><span>On</span></div>
+        <div class="set"><span>Speed trainer</span><span>+2 every 4 bars → 140 ›</span></div>
+        <div class="set"><span>Gap trainer</span><span>Off ›</span></div>
+      </div>
+    </div>
+    <ul class="note">
+      <li><b>Tap tempo</b> = tap the BPM number; <b>drag</b> it up/down for big changes; −/+ for 1 BPM. Kills the slider and four nudge buttons.</li>
+      <li><b>Mutes</b> become tapping a drum lane, so the separate mute row goes.</li>
+      <li><b>Drop back 10</b> appears inside the status pill only while the trainer runs.</li>
+      <li>Credits move to an About line at the bottom of the Sound sheet.</li>
+    </ul>
+  </div>
+
+  <!-- B -->
+  <div class="col">
+    <h2>B · Three tabs</h2>
+    <p>Same split, but as Play / Practice / Sound tabs at the bottom. More familiar iOS pattern; one extra tap for settings, and tabs eat ~60px.</p>
+    <div class="phone">
+      <div class="groove"><div><b>Reggae One Drop</b><small>Studio kit · 12/8 feel</small></div><span class="muted">›</span></div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px">
+        <div class="bpm">76<small>BPM</small></div>
+        <div class="nudge"><button>−</button><button style="width:auto;border-radius:23px;padding:0 18px;font-size:14px">Tap</button><button>+</button></div>
+        <div class="pill">Chorus 2/8</div>
+      </div>
+      <div class="seg" style="margin-bottom:10px"><span>Verse</span><span class="on">Chorus</span></div>
+      <button class="play" style="margin-bottom:14px">Stop</button>
+      <div class="tabs"><span class="on"><b>▶︎</b>Play</span><span><b>◎</b>Practice</span><span><b>◐</b>Sound</span></div>
+    </div>
+    <ul class="note">
+      <li>Good if you expect to keep adding features: each tab has room to grow.</li>
+      <li>Downside: tabs are permanent chrome on a screen you mostly glance at.</li>
+    </ul>
+  </div>
+
+  <!-- C -->
+  <div class="col">
+    <h2>C · Hands-free stage</h2>
+    <p>The whole upper screen is one giant play/stop target you can hit with a knuckle while holding the guitar. Swipe left/right on it to change groove. Settings behind one ⚙︎.</p>
+    <div class="phone">
+      <div class="row" style="flex:0;justify-content:space-between;margin-bottom:12px"><span class="muted" style="flex:0;white-space:nowrap">‹ Funk 16ths ›</span><button style="flex:0">⚙︎</button></div>
+      <div class="big">
+        <div class="bpm" style="font-size:120px">104</div>
+        <div class="muted" style="margin-top:6px;letter-spacing:.2em;font-size:11px">TAP ANYWHERE TO STOP</div>
+      </div>
+      <div class="row" style="margin-top:12px"><button>−</button><button>Verse</button><button>Chorus</button><button>+</button></div>
+    </div>
+    <ul class="note">
+      <li>Best for actual playing: no small targets.</li>
+      <li>Risk: accidental stops; less discoverable. Could be a "stage mode" toggle on top of A instead.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  // fill the lane placeholders with step cells
+  const mk = (pat, now = 6) => [...pat].map((c, i) => `<i class="${c === "x" ? "on" : ""}${i === now ? " now" : ""}"></i>`).join("");
+  document.body.innerHTML = document.body.innerHTML
+    .replaceAll("${lane}", mk("x-x-x-x-x-x-x-x-"))
+    .replaceAll("${lane2}", mk("----x-------x---"))
+    .replaceAll("${lane3}", mk("x-------x-x-----"))
+    .replaceAll("${lane4}", mk("x---------------"));
+  function openSheet(id, which) {
+    const ph = document.getElementById(id);
+    ph.querySelectorAll(".sheet").forEach((s) => (s.style.display = s.dataset.s === which ? "" : "none"));
+    ph.classList.add("open");
+  }
+  function closeSheet(id) { document.getElementById(id).classList.remove("open"); }
+</script>
+</body>
+</html>

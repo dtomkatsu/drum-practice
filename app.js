@@ -70,7 +70,7 @@ function refreshLabels() {
 function save() {
   localStorage.setItem("groove", JSON.stringify({
     pattern: $("pattern").value, bpm: eng.bpm, kit: $("kit").value,
-    feel: $("feel").value, fills: String(eng.fillEvery), song: $("song").value, kitAuto, kitVersion: 11,
+    feel: $("feel").value, fills: String(eng.fillEvery), variety: eng.variety, song: $("song").value, kitAuto, kitVersion: 11,
     tempos, muted: [...muted], gap: $("gap").value,
     countin: $("countin").checked,
     trainer: { on: $("trainer").checked, add: $("tradd").value, every: $("trevery").value, max: $("trmax").value },
@@ -86,6 +86,12 @@ for (const b of $("fills").children) {
 }
 function syncFills() { for (const b of $("fills").children) b.classList.toggle("on", +b.dataset.v === eng.fillEvery); }
 syncFills();
+
+// Variety: how much the groove changes bar to bar (ghosts, pickups, lifts, generated fills).
+eng.variety = +(saved.variety ?? 0.5);
+function syncVariety() { for (const b of $("variety").children) b.classList.toggle("on", +b.dataset.v === eng.variety); }
+for (const b of $("variety").children) b.onclick = () => { eng.variety = +b.dataset.v; syncVariety(); save(); };
+syncVariety();
 function applyFeel() {
   eng.feel = $("feel").value / 100;
   save();

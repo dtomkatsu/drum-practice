@@ -5,6 +5,7 @@
 // Each groove has `main`; optional `alt` (plays on every other bar) and `fill`
 // (last bar of each phrase). alt/fill only override the voices they list.
 // `swing` (0-0.5) delays every other subdivision by that fraction of a step.
+// `lockKick` / `lockSnare` keep the variation engine away from parts that define the style.
 export const PATTERNS = [
   {
     name: "Rock 8ths", steps: 16, perBeat: 4,
@@ -14,7 +15,7 @@ export const PATTERNS = [
             1: "------------Xx--", 3: "--------------XX" },
   },
   {
-    name: "Four on the Floor", steps: 16, perBeat: 4,
+    name: "Four on the Floor", lockKick: true, steps: 16, perBeat: 4,
     main: { k: "X---x---X---x---", s: "----X-------X---", h: "x-g-x-g-x-g-x-g-", o: "--x---x---x---x-" },
     alt:  { s: "----X-----g-X---" },
     fill: { s: "----X---x-x-xxXX", h: "x-g-x-g-x-------", o: "--x---x---------" },
@@ -50,7 +51,7 @@ export const PATTERNS = [
     fill: { r: "X-x-X-x---------", s: "----X---XXXXXXXX" },
   },
   {
-    name: "Train Beat (Country)", steps: 16, perBeat: 4,
+    name: "Train Beat (Country)", lockSnare: true, steps: 16, perBeat: 4,
     main: { k: "x-------x-------", s: "ggggXgggggggXggg" },
     fill: { s: "ggggXgggxxxxXXXX" },
   },
@@ -68,26 +69,26 @@ export const PATTERNS = [
   },
   {
     // Ride spang-a-lang, hat foot on 2 & 4, feathered kick, sparse snare comping.
-    name: "Jazz Swing", steps: 12, perBeat: 3, kit: "drs-brushes",
+    name: "Jazz Swing", lockKick: true, comp: true, steps: 12, perBeat: 3, kit: "drs-brushes",
     main: { r: "x--X-xx--X-x", h: "---x-----x--", k: "g--g--g--g--", s: "-----------g" },
     alt:  { s: "-----g----g-" },
     fill: { r: "x--X-x------", s: "------g-xgxX", 3: "---------x--" },
     chorus: { k: "g--g--g--g-x", s: "--g--g--g--x" },
   },
   {
-    name: "Jazz Waltz (3/4)", steps: 9, perBeat: 3, kit: "drs-brushes",
+    name: "Jazz Waltz (3/4)", lockKick: true, comp: true, steps: 9, perBeat: 3, kit: "drs-brushes",
     main: { r: "x--x-xx-x", h: "---x--x--", k: "g--------" },
     alt:  { s: "------g--", k: "g-----g--" },
     fill: { r: "x--x-----", s: "----gxgxX" },
     chorus: { k: "x-----g--", s: "---g--g-x" },
   },
   {
-    name: "Bossa Nova", steps: 16, perBeat: 4, noCrash: true,
+    name: "Bossa Nova", lockKick: true, steps: 16, perBeat: 4, noCrash: true,
     main: { k: "x--xx--xx--xx--x", t: "x--x--x---x--x--", h: "x-x-x-x-x-x-x-x-" },
   },
   {
     // Beat 1 is empty; kick + cross-stick drop together on 3. Shuffled hats, a lift on the "and" of 4.
-    name: "Reggae One Drop", steps: 12, perBeat: 3,
+    name: "Reggae One Drop", lockKick: true, steps: 12, perBeat: 3,
     main: { k: "------X-----", t: "------X-----", h: "x-xx-xx-xx-x" },
     alt:  { t: "---g--X-----", h: "x-xx-xx-xx--", o: "-----------x" },
     fill: { k: "------X-----", t: "------X-----", h: "x-xx--------", 1: "------xxx---", 2: "---------xx-", 3: "-----------X" },
@@ -95,7 +96,7 @@ export const PATTERNS = [
   },
   {
     // Four-on-the-floor kick under the shuffle; driving, militant feel.
-    name: "Reggae Steppers", steps: 12, perBeat: 3,
+    name: "Reggae Steppers", lockKick: true, steps: 12, perBeat: 3,
     main: { k: "X--x--X--x--", t: "------X-----", h: "x-xx-xx-xx-x" },
     alt:  { t: "------X--g--", o: "-----x------" },
     fill: { t: "------X-----", h: "x-xx-x------", 1: "------xxx---", 2: "---------xxx" },

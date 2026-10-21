@@ -37,6 +37,87 @@ function chorusOf(p) {
   return chorusCache.get(p);
 }
 
+// ---------- Variation ----------
+// Small, style-safe changes a drummer makes bar to bar. The backbone never moves: downbeat
+// kick, accented backbeats, and anything a groove marks as locked (e.g. reggae's drop).
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const setAt = (row, i, c) => row.slice(0, i) + c + row.slice(i + 1);
+const empty = (g, i) => !["k", "s", "t"].some((k) => /[Xxg]/.test(g[k]?.[i] ?? ""));
+
+function vary(g, p, amount) {
+  const n = p.steps, pb = p.perBeat;
+  if (pb === 1 || Math.random() > 0.35 + 0.5 * amount) return;     // most bars get a touch
+  const snareKey = g.s ? "s" : g.t ? "t" : null;
+  const moves = [];
+  // Ghost notes either side of a backbeat.
+  if (snareKey && !p.lockSnare) moves.push(() => {
+    const backbeats = [...g[snareKey]].flatMap((c, i) => (c === "X" || c === "x" ? [i] : []));
+    const spots = backbeats.flatMap((i) => [i - 1, i + 1, i + 2]).filter((i) => i > 0 && i < n && empty(g, i));
+    for (let k = 0; k < (amount > 0.7 ? 2 : 1) && spots.length; k++) {
+      const i = spots.splice(Math.floor(Math.random() * spots.length), 1)[0];
+      g[snareKey] = setAt(g[snareKey], i, "g");
+    }
+  });
+  // Jazz comping: light snare (and the odd kick "bomb") on triplet partials.
+  if (p.comp) moves.push(() => {
+    const lets = [];
+    for (let i = 2; i < n; i += 3) if (empty(g, i)) lets.push(i);
+    for (let k = 0; k < 1 + Math.floor(Math.random() * 2) && lets.length; k++) {
+      const i = lets.splice(Math.floor(Math.random() * lets.length), 1)[0];
+      g.s = setAt(g.s ?? "-".repeat(n), i, Math.random() < 0.75 ? "g" : "x");
+    }
+    if (Math.random() < 0.2 * amount && lets.length) g.k = setAt(g.k, pick(lets), "x");
+  });
+  // Kick pickup on an empty off-beat (never on a backbeat).
+  if (g.k && !p.lockKick) moves.push(() => {
+    const step8 = pb === 4 ? 2 : pb;                                   // 8th-note grid (or beat for triplets)
+    const spots = [];
+    for (let i = step8; i < n; i += pb === 4 ? 2 : 1) if (empty(g, i) && (pb !== 3 || i % 3 === 2)) spots.push(i);
+    if (spots.length) g.k = setAt(g.k, pick(spots), "x");
+  });
+  // Open-hat lift on the last off-beat, closed hat choked right after.
+  if (g.h && /x/i.test(g.h)) moves.push(() => {
+    const at = pb === 4 ? n - 2 : n - 1;                              // "and" of the last beat
+    if (g.h[at] !== "-") { g.h = setAt(g.h, at, "-"); g.o = setAt(g.o ?? "-".repeat(n), at, "x"); }
+  });
+  const count = amount > 0.7 && Math.random() < 0.5 ? 2 : 1;
+  for (let k = 0; k < count && moves.length; k++) moves.splice(Math.floor(Math.random() * moves.length), 1)[0]();
+}
+
+// Generated fills over the last 1 or 2 beats: snare roll, tom run, or snare-into-toms.
+function makeFill(p, base, amount) {
+  const n = p.steps, pb = p.perBeat;
+  if (pb === 1) return p.fill ?? {};
+  const beats = Math.random() < 0.35 + 0.3 * amount ? 2 : 1;
+  const start = n - beats * pb;
+  const region = [];
+  for (let i = start; i < n; i++) region.push(i);
+  const blank = () => "-".repeat(n);
+  const f = {};
+  // groove carries on until the fill starts
+  for (const k of ["h", "o", "r"]) if (base[k]) f[k] = base[k].slice(0, start) + "-".repeat(n - start);
+  if (base.k) f.k = base.k.slice(0, start) + "-".repeat(n - start);
+  const snare = "s";                                                     // fills open up to full snare
+  const keep = (k) => (base[k] ? base[k].slice(0, start) + "-".repeat(n - start) : blank());
+  f[snare] = keep(snare);
+  if (base.t) f.t = keep("t");
+  const toms = ["1", "2", "3"];
+  const type = pick(["roll", "toms", "snareToToms"]);
+  region.forEach((i, j) => {
+    const frac = j / Math.max(1, region.length - 1);
+    const vel = frac > 0.75 ? "X" : frac > 0.3 ? "x" : "g";
+    let voice = snare;
+    if (type === "toms") voice = toms[Math.min(2, Math.floor(frac * 3))];
+    if (type === "snareToToms" && frac >= 0.5) voice = toms[Math.min(2, Math.floor((frac - 0.5) * 6))];
+    // thin out busy 16th rolls a little so it breathes
+    if (pb === 4 && type !== "roll" && j % 2 === 1 && Math.random() < 0.4) return;
+    f[voice] = setAt(f[voice] ?? blank(), i, vel);
+  });
+  // anchor the start of the fill with the kick; the crash on the next downbeat lands it
+  f.k = setAt(f.k ?? blank(), start, "x");
+  return f;
+}
+
 // Gaussian-ish noise in roughly [-1, 1] (sum of uniforms).
 const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 
@@ -51,6 +132,7 @@ export class DrumEngine {
     this.bar = 0;
     this.countIn = 0;          // bars of click before the groove
     this.trainer = null;       // {every: bars, add: bpm, max: bpm}
+    this.variety = 0.5;        // bar-to-bar variation 0..1
     this.feel = 0.5;           // humanize amount 0..1
     this.section = "verse";
     this.muted = new Set();    // voice keys to skip, e.g. "k"
@@ -168,9 +250,13 @@ export class DrumEngine {
     }
     const base = this.section === "chorus" ? chorusOf(p) : p.main;
     const alt = !fill && p.alt && this.phraseBar % 2 === 1 && this.section !== "chorus";
-    const g = { ...base, ...(fill ? p.fill : alt ? p.alt : {}) };
+    // Fills: the groove's own fill, or (with variety on) a generated one in the same style.
+    const fillGrid = fill && this.variety > 0 && Math.random() < 0.3 + 0.4 * this.variety
+      ? makeFill(p, base, this.variety) : p.fill;
+    const g = { ...base, ...(fill ? fillGrid : alt ? p.alt : {}) };
+    if (!fill && this.variety > 0) vary(g, p, this.variety);
     // In a chorus that rides, fill hats stay on the ride.
-    if (fill && g.r && !base.h && p.fill.h) { g.r = p.fill.h.replace(/g/g, "-"); delete g.h; delete g.o; }
+    if (fill && g.r && !base.h && fillGrid.h) { g.r = fillGrid.h.replace(/g/g, "-"); delete g.h; delete g.o; }
     if (this.crashNext && !p.noCrash) g.c = "X" + (g.c ?? "-".repeat(p.steps)).slice(1);
     this.crashNext = fill;
     return g;

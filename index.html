@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Groove</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --dim:#555; --hot:#ff6a2b; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px -apple-system, system-ui, sans-serif;
+         padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); user-select:none;
+         display:flex; flex-direction:column; min-height:100vh; gap:18px; }
+  h1 { font-size:14px; letter-spacing:.2em; color:var(--dim); margin:16px 0 0; text-transform:uppercase; }
+  select, button { font:inherit; color:var(--fg); background:#222; border:0; border-radius:12px; padding:14px; }
+  select { width:100%; font-size:18px; }
+  .bpm { text-align:center; font-size:88px; font-weight:200; font-variant-numeric:tabular-nums; line-height:1; }
+  .bpm small { display:block; font-size:13px; color:var(--dim); letter-spacing:.2em; }
+  input[type=range] { width:100%; accent-color:var(--hot); height:40px; }
+  .row { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .row button { font-size:18px; }
+  .grid { display:grid; gap:4px; }
+  .cell { height:10px; border-radius:3px; background:#222; transition:background .05s; }
+  .cell.on { background:#444; } .cell.now { background:var(--hot); }
+  #play { font-size:22px; padding:22px; background:var(--hot); color:#000; font-weight:600; }
+  #play.on { background:#333; color:var(--fg); }
+  .opts { display:flex; gap:8px; flex-wrap:wrap; color:#aaa; font-size:14px; }
+  .opts label { background:#1b1b1b; border-radius:10px; padding:10px 12px; display:flex; gap:6px; align-items:center; }
+  .opts input[type=number] { width:48px; background:#222; color:var(--fg); border:0; border-radius:6px; padding:4px; font:inherit; }
+</style>
+</head>
+<body>
+  <h1>Groove</h1>
+  <select id="pattern"></select>
+  <div class="bpm"><span id="bpm">90</span><small>BPM</small></div>
+  <input id="slider" type="range" min="30" max="240" value="90">
+  <div class="row">
+    <button data-d="-5">−5</button><button data-d="-1">−1</button>
+    <button data-d="1">+1</button><button data-d="5">+5</button>
+  </div>
+  <button id="tap">Tap tempo</button>
+  <div id="grid" class="grid"></div>
+  <div class="opts">
+    <label><input id="countin" type="checkbox" checked> 1-bar count-in</label>
+    <label><input id="trainer" type="checkbox"> Speed up
+      <input id="tradd" type="number" value="2" min="1">bpm every
+      <input id="trevery" type="number" value="4" min="1">bars to
+      <input id="trmax" type="number" value="140" min="30"></label>
+  </div>
+  <button id="play">Play</button>
+<script type="module" src="app.js"></script>
+</body>
+</html>

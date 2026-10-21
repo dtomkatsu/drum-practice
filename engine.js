@@ -91,9 +91,25 @@ export class DrumEngine {
     this.onBpm?.(this.bpm);
   }
 
+  // iOS only lets audio (re)start inside the tap that asked for it: call this first thing in
+  // the click handler, before any await. Resumes the context and plays one silent sample,
+  // the classic iOS unlock.
+  unlock() {
+    if (!this.ctx) return;
+    if (this.ctx.state !== "running") this.ctx.resume();
+    const s = this.ctx.createBufferSource();
+    s.buffer = this.ctx.createBuffer(1, 1, this.ctx.sampleRate);
+    s.connect(this.ctx.destination);
+    s.start();
+  }
+
   async start() {
     await this.init();
-    await this.ctx.resume();
+    if (this.ctx.state !== "running") {
+      // Wait (briefly) for the resume kicked off by unlock() to land.
+      await Promise.race([this.ctx.resume(), new Promise((r) => setTimeout(r, 1000))]);
+    }
+    if (this.ctx.state !== "running") throw new Error("audio-locked");
     this.step = 0;
     this.bar = -this.countIn;
     this.phraseBar = 0;
@@ -106,13 +122,23 @@ export class DrumEngine {
     this.nextTime = this.ctx.currentTime + 0.05;
     this.playing = true;
     this.reportBar(this.nextTime);
-    this.timer = setInterval(() => this.schedule(), TICK_MS);
+    // Watchdog: if the audio clock stops moving (iOS interruption, locked context), say so
+    // instead of silently sitting on "count-in".
+    this.lastClock = { t: this.ctx.currentTime, at: performance.now() };
+    this.timer = setInterval(() => {
+      const now = this.ctx.currentTime;
+      if (now !== this.lastClock.t) this.lastClock = { t: now, at: performance.now() };
+      else if (performance.now() - this.lastClock.at > 1500) { this.onStall?.(); return; }
+      this.schedule();
+    }, TICK_MS);
     this.schedule();
   }
 
   stop() {
     this.playing = false;
     clearInterval(this.timer);
+    // Suspend so iOS treats every Play the same way (and the phone isn't driving silent audio).
+    this.ctx?.suspend();
   }
 
   // Which grid plays this bar. Bars count from the start of the current section, so

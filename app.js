@@ -253,20 +253,28 @@ function draw() {
 draw();
 
 let wakeLock = null;
+function stopPlayback(message = "") {
+  eng.stop();
+  queue.length = 0;
+  light(null);
+  wakeLock?.release(); wakeLock = null;
+  $("play").textContent = "Play"; $("play").classList.remove("on");
+  $("status").textContent = message; $("dropback").hidden = true;
+  $("pill").classList.toggle("idle", !message);
+}
+eng.onStall = () => stopPlayback("Audio paused by iOS: tap Play");
+
 $("play").onclick = async () => {
   if (eng.playing) {
-    eng.stop();
-    queue.length = 0;
-    light(null);
-    wakeLock?.release(); wakeLock = null;
-    $("play").textContent = "Play"; $("play").classList.remove("on");
-    $("status").textContent = ""; $("dropback").hidden = true; $("pill").classList.add("idle");
+    stopPlayback();
     return;
   }
+  eng.unlock();   // must run synchronously inside the tap, before any await (iOS)
   eng.countIn = $("countin").checked ? 1 : 0;
   applyTrainer();
   await ensureKit();
-  await eng.start();
+  try { await eng.start(); }
+  catch { stopPlayback("Audio blocked: tap Play again"); return; }
   try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
   $("play").textContent = "Stop"; $("play").classList.add("on");
 };

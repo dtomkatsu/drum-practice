@@ -118,6 +118,12 @@ function makeFill(p, base, amount) {
   return f;
 }
 
+// Per-subdivision velocity and timing lean (ms) for the cymbal hand, by steps per beat.
+const TEMPLATE = {
+  4: { vel: [1.0, 0.62, 0.84, 0.64], ms: [0, 4, 1, 5] },   // 16th grid: 1 e & a
+  3: { vel: [1.0, 0.6, 0.8], ms: [0, 2, 4] },               // triplet grid: 1 trip let
+};
+
 // Gaussian-ish noise in roughly [-1, 1] (sum of uniforms).
 const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
 
@@ -156,16 +162,51 @@ export class DrumEngine {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   }
 
-  // Bus: no compression (it flattens the attack and makes real drums sound programmed),
-  // just a fast safety limiter and trim so stacked hits never clip.
+  // Output bus. Headphones: no compression (keeps attacks), just a safety limiter.
+  // Phone speaker: the speaker can't play below ~300 Hz, so (1) cut the sub it would waste
+  // excursion on, (2) synthesize harmonics of the low band so the ear hears the kick's pitch
+  // anyway (psychoacoustic bass), (3) add presence and gentle compression for density.
   buildOutput(ctx) {
+    const input = ctx.createGain();
     const limit = ctx.createDynamicsCompressor();
     limit.threshold.value = -2; limit.knee.value = 0; limit.ratio.value = 20;
     limit.attack.value = 0.001; limit.release.value = 0.08;
-    const trim = ctx.createGain();
-    trim.gain.value = 0.55;
-    trim.connect(limit); limit.connect(ctx.destination);
-    this.out = trim;
+    limit.connect(ctx.destination);
+
+    // headphones path
+    const hp = ctx.createGain(); hp.gain.value = 0.55;
+    input.connect(hp); hp.connect(limit);
+
+    // speaker path
+    const sp = ctx.createGain(); sp.gain.value = 0;
+    const hpf = ctx.createBiquadFilter(); hpf.type = "highpass"; hpf.frequency.value = 110; hpf.Q.value = 0.7;
+    const low = ctx.createBiquadFilter(); low.type = "lowpass"; low.frequency.value = 150;
+    const shaper = ctx.createWaveShaper(); shaper.oversample = "4x";
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < curve.length; i++) { const x = (i / 511.5) - 1; curve[i] = Math.tanh(4 * x) + 0.3 * x * x; }
+    shaper.curve = curve;
+    const harm = ctx.createBiquadFilter(); harm.type = "bandpass"; harm.frequency.value = 260; harm.Q.value = 0.8;
+    const harmGain = ctx.createGain(); harmGain.gain.value = 0.9;
+    const presence = ctx.createBiquadFilter(); presence.type = "peaking"; presence.frequency.value = 2800; presence.Q.value = 0.9; presence.gain.value = 3;
+    const body = ctx.createBiquadFilter(); body.type = "peaking"; body.frequency.value = 350; body.Q.value = 1; body.gain.value = 2;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -20; comp.ratio.value = 3; comp.attack.value = 0.012; comp.release.value = 0.12; comp.knee.value = 6;
+    const makeup = ctx.createGain(); makeup.gain.value = 0.95;
+    input.connect(hpf); hpf.connect(body);
+    input.connect(low); low.connect(shaper); shaper.connect(harm); harm.connect(harmGain); harmGain.connect(body);
+    body.connect(presence); presence.connect(comp); comp.connect(makeup); makeup.connect(sp); sp.connect(limit);
+
+    this.outputs = { headphones: hp, speaker: sp };
+    this.out = input;
+    this.setOutputMode(this.outputMode ?? "speaker");
+  }
+
+  setOutputMode(mode) {
+    this.outputMode = mode;
+    if (!this.outputs) return;
+    this.outputs.headphones.gain.value = mode === "headphones" ? 0.55 : 0;
+    // The Web Audio limiter isn't brick-wall, so leave headroom rather than trusting it.
+    this.outputs.speaker.gain.value = mode === "speaker" ? 0.7 : 0;
   }
 
   setBpm(bpm) {
@@ -321,16 +362,22 @@ export class DrumEngine {
           const ch = this.grid[key]?.[this.step];
           let v = ch === "X" ? 1 : ch === "x" ? 0.75 : ch === "g" ? 0.3 : 0;
           if (!v) continue;
-          // Cymbal hand leans on the beat, lighter in between.
-          if ("hr".includes(key) && ch === "x" && this.step % p.perBeat !== 0) v *= 0.85;
+          // Groove template: a drummer's hand has a consistent strong-weak shape and lean
+          // per subdivision. That repeatable shape reads as human far more than randomness.
+          const tpl = TEMPLATE[p.perBeat], pos = this.step % p.perBeat;
           let when = t + swing;
+          if (tpl && "hor".includes(key)) {
+            if (ch === "x") v *= tpl.vel[pos];
+            when += tpl.ms[pos] / 1000 * Math.min(1, this.feel * 2);
+          }
+          if (tpl && key === "k" && pos !== 0) v *= 0.9;                  // off-beat kicks a touch lighter
           if (this.feel > 0) {
             // feel 0..1: 0 = machine-tight, 0.5 = natural player, 1 = loose
             const h = HUMAN[key] ?? HUMAN.default, f = this.feel * 2;
             when += (h.bias + gauss() * h.jitter) * f;
             v *= 1 + gauss() * 0.06 * f;
           }
-          this.voice(key, Math.max(when, this.ctx.currentTime), Math.min(1.1, Math.max(0.05, v)));
+          this.voice(key, Math.max(when, this.ctx.currentTime), Math.min(1.1, Math.max(0.05, v)), ch);
         }
       }
       this.onStep?.(this.step, t, this.bar);
@@ -372,7 +419,11 @@ export class DrumEngine {
     this.rr = {};
   }
 
-  voice(key, t, v) {
+  voice(key, t, v, ch) {
+    // Articulations (kits that have them): accented hats use the stick shoulder,
+    // accented backbeats in rock-family grooves get a rim click layered in (rimshot crack).
+    if (key === "h" && v >= 0.92 && this.samples?.H) key = "H";
+    if (key === "s" && ch === "X" && this.pattern?.rimshot && this.samples?.S) this.voice("S", t, Math.min(1, v) * 0.45);
     const layers = this.samples?.[key];
     if (layers) {
       // Pick layer by velocity, rotate takes so repeats don't machine-gun.
@@ -401,7 +452,7 @@ export class DrumEngine {
 
   // A closed hat (or another open hat) cuts off the ringing open hat, like a real foot pedal.
   choke(key, t, gainNode) {
-    if ((key === "h" || key === "o") && this.openHatGain) {
+    if ((key === "h" || key === "H" || key === "o") && this.openHatGain) {
       const g = this.openHatGain.gain;
       g.cancelScheduledValues(t);
       g.setTargetAtTime(0, t, 0.015);

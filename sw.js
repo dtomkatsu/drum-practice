@@ -1,7 +1,7 @@
 // Offline cache. Bump VERSION when shipping changes.
 // App shell is cached up front; kit samples are cached the first time they're used,
 // so every kit you've played works offline without downloading all of them on install.
-const VERSION = "v13";
+const VERSION = "v14";
 const SHELL = ["./", "index.html", "app.js", "engine.js", "patterns.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL))));
